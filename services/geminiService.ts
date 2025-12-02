@@ -1,9 +1,38 @@
+
 import { GoogleGenAI } from "@google/genai";
 import { Transaction, Loan, TransactionType, LoanType } from "../types";
 
+// Helper function to safely get API KEY without crashing in browser
+const getApiKey = () => {
+  try {
+    // 1. Priority: Vite Environment Variable (Standard for Vercel + Vite)
+    // @ts-ignore
+    if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_KEY) {
+        // @ts-ignore
+        return import.meta.env.VITE_API_KEY;
+    }
+
+    // 2. Fallback: Standard process.env (Node/Build env)
+    if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
+      return process.env.API_KEY;
+    }
+
+    // 3. Fallback: window.process (Our Polyfill)
+    // @ts-ignore
+    if (typeof window !== 'undefined' && window.process && window.process.env && window.process.env.API_KEY) {
+       // @ts-ignore
+       return window.process.env.API_KEY;
+    }
+    
+  } catch (e) {
+    console.warn("Failed to retrieve API KEY safely");
+  }
+  return '';
+};
+
 // Note: In a real app, never expose API keys on client side.
 // This is strictly for the requested demo architecture.
-const API_KEY = process.env.API_KEY || '';
+const API_KEY = getApiKey();
 
 export const getFinancialAdvice = async (
   transactions: Transaction[],
@@ -11,7 +40,7 @@ export const getFinancialAdvice = async (
   balance: number
 ): Promise<string> => {
   try {
-    if (!API_KEY) return "الرجاء إعداد مفتاح API للحصول على التحليل الذكي.";
+    if (!API_KEY) return "الرجاء إعداد مفتاح API (VITE_API_KEY) في إعدادات Vercel للحصول على التحليل الذكي.";
 
     const ai = new GoogleGenAI({ apiKey: API_KEY });
 
@@ -180,7 +209,7 @@ export const parseBillFromPdf = async (base64Pdf: string): Promise<ParsedBill | 
     const cleanBase64 = base64Pdf.split(',')[1] || base64Pdf;
 
     const prompt = `
-      Analyze this bill/contract PDF and extract the following details into JSON:
+      Analyze this bill/contract PDF and extract the following details into JSON.
       
       Fields:
       - provider: (e.g., STC, Mobily, Saudi Electricity, Water Company)

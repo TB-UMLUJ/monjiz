@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
   <head>
@@ -5,14 +6,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>منجز - Monjez</title>
     
-    <!-- FIX: Polyfill for process.env to prevent "white screen" crash on Vercel/Netlify -->
+    <!-- FIX: Robust Polyfill for process.env to prevent "white screen" crash on Vercel/Netlify -->
     <script>
-      window.process = {
-        env: {
+      (function() {
+        var env = {
           NODE_ENV: 'production',
-          API_KEY: '' // سيتم استبدال هذا أثناء البناء أو يمنع الانهيار عند عدم وجوده
+          API_KEY: '' 
+        };
+        // Define process on window
+        if (typeof window !== 'undefined') {
+          window.process = window.process || {};
+          window.process.env = window.process.env || env;
         }
-      };
+        // Define process globally if possible (rarely needed but safer)
+        if (typeof globalThis !== 'undefined') {
+          globalThis.process = globalThis.process || {};
+          globalThis.process.env = globalThis.process.env || env;
+        }
+      })();
     </script>
 
     <script src="https://cdn.tailwindcss.com"></script>
@@ -102,10 +113,8 @@
   }
 }
 </script>
-<link rel="stylesheet" href="/index.css">
 </head>
   <body class="transition-colors duration-300">
     <div id="root"></div>
-  <script type="module" src="/index.tsx"></script>
-</body>
+  </body>
 </html>
