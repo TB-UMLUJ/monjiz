@@ -1,7 +1,5 @@
 
 
-
-
 export enum TransactionType {
   INCOME = 'income',
   EXPENSE = 'expense',
@@ -91,11 +89,21 @@ export interface Budget {
 export type ThemeOption = 'system' | 'light' | 'dark';
 export type LogoPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'center';
 
+export interface Allowance {
+  id: string;
+  name: string; // e.g. Housing, Transport
+  amount: number;
+}
+
 export interface IncomeSource {
   id: string;
   name: string;
-  amount: number;
+  amount: number; // Net Amount (Actual deposit)
   dayOfMonth: number;
+  // Detailed Salary Breakdown
+  basicSalary?: number;
+  gosiDeduction?: number;
+  allowances?: Allowance[];
 }
 
 export interface BankCard {
@@ -108,6 +116,12 @@ export interface BankCard {
   balance?: number; 
   logoUrl?: string; // Optional logo URL
   logoPosition?: LogoPosition; // Position of the logo on the card
+}
+
+export interface EntityLogo {
+  id: string;
+  name: string;
+  logoUrl: string;
 }
 
 export interface UserSettings {

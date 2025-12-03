@@ -1,3 +1,5 @@
+
+
 import React, { useState } from 'react';
 import { Transaction, TransactionType, UserSettings } from '../types';
 import { storageService } from '../services/storage';
@@ -442,10 +444,10 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
                     </div>
                     <div className="min-w-0">
                       <h4 className="font-bold text-slate-800 dark:text-slate-200 text-sm md:text-base truncate">{tx.category}</h4>
-                      <p className="text-xs text-slate-400 truncate max-w-[150px] md:max-w-none">
-                         {new Date(tx.date).toLocaleDateString('ar-EG')} • {tx.note || 'بدون وصف'}
+                      <p className="text-xs text-slate-400 truncate max-w-[150px] md:max-w-none font-mono">
+                         {new Date(tx.date).toLocaleDateString('en-GB')} • {tx.note || 'بدون وصف'}
                          {tx.cardId && (
-                            <span className="flex items-center gap-1 mt-1 text-slate-500">
+                            <span className="flex items-center gap-1 mt-1 text-slate-500 font-sans">
                                 <CreditCard size={10} />
                                 {settings.cards.find(c => c.id === tx.cardId)?.cardNumber || '****'}
                             </span>
@@ -456,7 +458,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
                  
                  <div className="flex items-center gap-3 md:gap-4 shrink-0">
                     <span className={`font-bold font-mono text-base md:text-lg ${tx.type === TransactionType.INCOME ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-800 dark:text-slate-200'}`}>
-                       {tx.type === TransactionType.INCOME ? '+' : '-'}{tx.amount.toLocaleString()}
+                       {tx.type === TransactionType.INCOME ? '+' : '-'}{tx.amount.toLocaleString('en-US')}
                     </span>
                     
                     <div className="flex gap-2">

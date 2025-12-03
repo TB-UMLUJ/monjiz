@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Transaction, UserSettings, FinancialGoal } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as ReTooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
@@ -148,15 +150,15 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
                     {isOverBudgetRisk ? 'تنبيه: خطر تجاوز الميزانية' : 'وضعك المالي ممتاز!'}
                 </h3>
                 <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                    بناءً على صرفك الحالي ({dailyAverage.toFixed(0)} يومياً)، متوقع أن تصل إلى <span className="font-bold">{forecastedSpend.toLocaleString()}</span> بنهاية الشهر.
-                    {isOverBudgetRisk ? ` (تتجاوز الحد بـ ${(forecastedSpend - settings.monthlyLimit).toLocaleString()})` : ` (أقل من الحد بـ ${(settings.monthlyLimit - forecastedSpend).toLocaleString()})`}
+                    بناءً على صرفك الحالي ({dailyAverage.toFixed(0)} يومياً)، متوقع أن تصل إلى <span className="font-bold font-mono">{forecastedSpend.toLocaleString('en-US')}</span> بنهاية الشهر.
+                    {isOverBudgetRisk ? ` (تتجاوز الحد بـ ${(forecastedSpend - settings.monthlyLimit).toLocaleString('en-US')})` : ` (أقل من الحد بـ ${(settings.monthlyLimit - forecastedSpend).toLocaleString('en-US')})`}
                 </p>
              </div>
           </div>
           <div className="text-center md:text-left min-w-[120px]">
              <p className="text-xs text-slate-500 mb-1">الميزانية المتبقية</p>
-             <p className="text-2xl font-bold text-slate-800 dark:text-white">
-                {(settings.monthlyLimit - totalSpent).toLocaleString()}
+             <p className="text-2xl font-bold text-slate-800 dark:text-white font-mono">
+                {(settings.monthlyLimit - totalSpent).toLocaleString('en-US')}
              </p>
           </div>
        </div>
@@ -197,7 +199,7 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
                                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }}></div>
                                <span className="text-slate-600 dark:text-slate-300">{item.name}</span>
                            </div>
-                           <span className="font-bold text-slate-800 dark:text-white">{item.value.toLocaleString()}</span>
+                           <span className="font-bold text-slate-800 dark:text-white font-mono">{item.value.toLocaleString('en-US')}</span>
                        </div>
                    ))}
                </div>
@@ -221,7 +223,7 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
                    </ResponsiveContainer>
                </div>
                <p className="text-sm text-slate-500 dark:text-slate-400 mt-4 text-center">
-                   مصروفاتك هذا الشهر {totalSpent > comparisonData[0].amount ? 'أعلى' : 'أقل'} من الشهر الماضي بـ {Math.abs(totalSpent - comparisonData[0].amount).toLocaleString()}.
+                   مصروفاتك هذا الشهر {totalSpent > comparisonData[0].amount ? 'أعلى' : 'أقل'} من الشهر الماضي بـ <span className="font-mono">{Math.abs(totalSpent - comparisonData[0].amount).toLocaleString('en-US')}</span>.
                </p>
            </div>
        </div>
@@ -230,7 +232,7 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
        <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
            <div className="flex items-center gap-2 mb-6">
                <Calendar size={20} className="text-emerald-500" />
-               <h3 className="font-bold text-lg text-slate-800 dark:text-white">تقويم الصرف (شهر {today.getMonth() + 1})</h3>
+               <h3 className="font-bold text-lg text-slate-800 dark:text-white font-mono">تقويم الصرف (شهر {today.getMonth() + 1})</h3>
            </div>
            
            <div className="grid grid-cols-7 gap-2">
@@ -242,7 +244,7 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
                    return (
                        <div 
                            key={day} 
-                           className={`aspect-square rounded-lg flex items-center justify-center text-sm ${getDayIntensity(day)} transition-all hover:scale-105 cursor-default`}
+                           className={`aspect-square rounded-lg flex items-center justify-center text-sm ${getDayIntensity(day)} transition-all hover:scale-105 cursor-default font-mono`}
                            title={`يوم ${day}`}
                        >
                            {day}
@@ -251,7 +253,7 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
                })}
            </div>
            <div className="flex gap-4 mt-4 justify-center text-xs text-slate-500">
-               <div className="flex items-center gap-1"><div className="w-3 h-3 bg-slate-100 rounded"></div> 0</div>
+               <div className="flex items-center gap-1 font-mono"><div className="w-3 h-3 bg-slate-100 rounded"></div> 0</div>
                <div className="flex items-center gap-1"><div className="w-3 h-3 bg-emerald-100 rounded"></div> منخفض</div>
                <div className="flex items-center gap-1"><div className="w-3 h-3 bg-yellow-100 rounded"></div> متوسط</div>
                <div className="flex items-center gap-1"><div className="w-3 h-3 bg-rose-100 rounded"></div> مرتفع</div>
@@ -287,7 +289,7 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
                                    <div className="flex justify-between items-center mb-2">
                                        <h4 className="font-bold text-slate-800 dark:text-white">{goal.name}</h4>
                                        <div className="flex items-center gap-2">
-                                           <span className="text-xs text-slate-500">{percentage.toFixed(0)}%</span>
+                                           <span className="text-xs text-slate-500 font-mono">{percentage.toFixed(0)}%</span>
                                            <button onClick={() => handleDeleteGoal(goal.id)} className="text-slate-400 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={14}/></button>
                                        </div>
                                    </div>
@@ -295,8 +297,8 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
                                        <div className="bg-emerald-500 h-full transition-all" style={{ width: `${percentage}%` }}></div>
                                    </div>
                                    <div className="flex justify-between items-center text-xs">
-                                       <span className="text-slate-500">{goal.currentAmount.toLocaleString()} / {goal.targetAmount.toLocaleString()}</span>
-                                       <button onClick={() => handleUpdateGoal(goal, 100)} className="text-emerald-600 font-bold hover:underline">+ 100 ريال</button>
+                                       <span className="text-slate-500 font-mono">{goal.currentAmount.toLocaleString('en-US')} / {goal.targetAmount.toLocaleString('en-US')}</span>
+                                       <button onClick={() => handleUpdateGoal(goal, 100)} className="text-emerald-600 font-bold hover:underline font-mono">+ 100 ريال</button>
                                    </div>
                                </div>
                            );
@@ -322,7 +324,7 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
                                <div className="flex-1">
                                    <div className="flex justify-between mb-1">
                                        <span className="font-bold text-sm text-slate-800 dark:text-white">{challenge.name}</span>
-                                       <span className="text-xs text-slate-500">{challenge.current}/{challenge.target}</span>
+                                       <span className="text-xs text-slate-500 font-mono">{challenge.current}/{challenge.target}</span>
                                    </div>
                                    <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
                                        <div className="bg-amber-400 h-full" style={{ width: `${progress}%` }}></div>
@@ -355,7 +357,7 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
                                type="number" 
                                value={simSaving} 
                                onChange={(e) => setSimSaving(Number(e.target.value))}
-                               className="w-full bg-white/10 border border-white/20 rounded-xl p-3 text-white outline-none focus:border-[#bef264]"
+                               className="w-full bg-white/10 border border-white/20 rounded-xl p-3 text-white outline-none focus:border-[#bef264] font-mono"
                            />
                        </div>
                        <div>
@@ -366,15 +368,15 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
                                onChange={(e) => setSimMonths(Number(e.target.value))}
                                className="w-full accent-[#bef264]"
                            />
-                           <div className="text-right text-sm text-[#bef264]">{simMonths} شهر ({Math.floor(simMonths/12)} سنة)</div>
+                           <div className="text-right text-sm text-[#bef264] font-mono">{simMonths} شهر ({Math.floor(simMonths/12)} سنة)</div>
                        </div>
                    </div>
                </div>
 
                <div className="flex-1 text-center bg-white/5 p-6 rounded-2xl border border-white/10 w-full">
                    <p className="text-sm text-indigo-300 mb-2">ستجمع مبلغ</p>
-                   <h2 className="text-4xl md:text-5xl font-bold text-white mb-2">
-                       {(simSaving * simMonths).toLocaleString()} <span className="text-lg text-[#bef264]">ريال</span>
+                   <h2 className="text-4xl md:text-5xl font-bold text-white mb-2 font-mono">
+                       {(simSaving * simMonths).toLocaleString('en-US')} <span className="text-lg text-[#bef264] font-tajawal">ريال</span>
                    </h2>
                    <p className="text-xs text-indigo-400 mt-4">
                        * هذا المبلغ لا يشمل العوائد الاستثمارية المحتملة.

@@ -1,4 +1,5 @@
 
+
 import React, { useEffect, useState } from 'react';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
@@ -11,7 +12,7 @@ import { storageService } from './services/storage';
 import { authService } from './services/auth';
 import { Loan, Transaction, UserSettings } from './types';
 import { Loader2 } from 'lucide-react';
-import { NotificationProvider } from './contexts/NotificationContext';
+import { NotificationProvider, useNotification } from './contexts/NotificationContext';
 
 const AppContent: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -22,6 +23,9 @@ const AppContent: React.FC = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loans, setLoans] = useState<Loan[]>([]);
   const [settings, setSettings] = useState<UserSettings | null>(null);
+
+  // We need to access notify here, but useNotification context is only available inside NotificationProvider.
+  // We'll handle notification inside the component logic after context is provided.
 
   const loadData = async () => {
       setIsLoading(true);
@@ -34,6 +38,14 @@ const AppContent: React.FC = () => {
         setTransactions(txs);
         setLoans(lns);
         setSettings(stgs);
+        
+        // Check for Salary/Recurring Deposit
+        const added = await storageService.processRecurringIncomes();
+        if (added > 0) {
+            // Refresh transactions if new salary was added
+            const freshTxs = await storageService.getTransactions();
+            setTransactions(freshTxs);
+        }
       } catch (e) {
           console.error("Failed to load data", e);
       } finally {

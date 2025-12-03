@@ -1,10 +1,11 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
-import { Loan, LoanType, Bill } from '../types';
+import { Loan, LoanType, Bill, EntityLogo } from '../types';
 import { calculateLoanSchedule, calculateDurationInMonths } from '../services/loanCalculator';
 import { storageService } from '../services/storage';
 import { parseLoanDetailsFromText, parseBillFromPdf } from '../services/geminiService';
-import { Plus, Trash2, CheckCircle, Calculator, FileText, UploadCloud, Calendar, Download, Loader2, AlertCircle, Sparkles, Wand2, X, Settings2, Edit3, ListChecks, RefreshCcw, Copy, Zap, Droplet, Wifi, Smartphone, Landmark, Receipt, Clock, Coins, Eye, TrendingDown, Hourglass, Archive, RotateCw, PlayCircle, Save, Image as ImageIcon } from 'lucide-react';
+import { Plus, Trash2, CheckCircle, Calculator, FileText, UploadCloud, Calendar, Download, Loader2, AlertCircle, Sparkles, Wand2, X, Settings2, Edit3, ListChecks, RefreshCcw, Copy, Zap, Droplet, Wifi, Smartphone, Landmark, Receipt, Clock, Coins, Eye, TrendingDown, Hourglass, Archive, RotateCw, PlayCircle, Save, Image as ImageIcon, ChevronRight } from 'lucide-react';
 import { useNotification } from '../contexts/NotificationContext';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -57,13 +58,16 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings }) => {
   // Tab State
   const [activeTab, setActiveTab] = useState<'loans' | 'bills' | 'archive' | 'subscriptions'>('loans');
   const [bills, setBills] = useState<Bill[]>([]);
+  
+  // Logos
+  const [knownLogos, setKnownLogos] = useState<EntityLogo[]>([]);
 
   // Modal States
   const [showAddModal, setShowAddModal] = useState(false);
   const [showSmartModal, setShowSmartModal] = useState(false);
   const [showScheduleEditor, setShowScheduleEditor] = useState(false); 
   const [showAddBillModal, setShowAddBillModal] = useState(false); 
-  const [viewingBill, setViewingBill] = useState<Bill | null>(null);
+  const [selectedBill, setSelectedBill] = useState<Bill | null>(null); // New state for bill details
 
   // New Calculators State
   const [showSettlementCalc, setShowSettlementCalc] = useState(false);
@@ -118,7 +122,6 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings }) => {
       endDateMode: 'date' | 'months';
       isSubscription: boolean;
       renewalDate: string;
-      icon: string;
   }>({
       provider: '',
       type: 'electricity',
@@ -133,7 +136,6 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings }) => {
       endDateMode: 'months',
       isSubscription: false,
       renewalDate: '',
-      icon: ''
   });
 
   // Refinance Calculator State
@@ -143,7 +145,28 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings }) => {
       if (activeTab === 'bills' || activeTab === 'archive' || activeTab === 'subscriptions') {
           storageService.getBills().then(setBills);
       }
+      storageService.getLogos().then(setKnownLogos);
   }, [activeTab]);
+
+  // Auto-detect Logo for Loan
+  useEffect(() => {
+      if (newLoan.name) {
+          const match = knownLogos.find(l => l.name.toLowerCase() === newLoan.name.trim().toLowerCase() || newLoan.name.toLowerCase().includes(l.name.toLowerCase()));
+          if (match && !newLoan.icon) {
+              setNewLoan(prev => ({ ...prev, icon: match.logoUrl }));
+          }
+      }
+  }, [newLoan.name, knownLogos]);
+
+  // Helper to find logo for a bill based on provider name
+  const getAutoLogo = (providerName: string) => {
+      if (!providerName) return null;
+      const normalized = providerName.trim().toLowerCase();
+      // Try exact match first, then partial
+      const match = knownLogos.find(l => l.name.toLowerCase() === normalized) 
+                 || knownLogos.find(l => normalized.includes(l.name.toLowerCase()) || l.name.toLowerCase().includes(normalized));
+      return match ? match.logoUrl : null;
+  };
 
   // Early Settlement Logic (KSA Approximate)
   const calculateEarlySettlement = () => {
@@ -193,7 +216,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings }) => {
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      if (file.size > 2000000) { notify("حجم الملف كبير جداً", "error"); return; }
+      if (file.size > 2000000) { notify("حجم الصورة كبير جداً", "error"); return; }
       setFileName(file.name);
       const reader = new FileReader();
       reader.onloadend = () => setNewLoan(prev => ({ ...prev, contractPdf: reader.result as string }));
@@ -413,7 +436,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings }) => {
               isSubscription: newBill.type === 'subscription',
               renewalDate: newBill.renewalDate,
               status: 'active',
-              icon: newBill.icon
+              icon: '' // Will be auto-resolved from provider name in UI
           };
 
           if (editingBillId) await storageService.updateBill(billData);
@@ -430,11 +453,11 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings }) => {
       } finally { setIsProcessing(false); }
   };
   
-    const deleteBill = async (e: React.MouseEvent, id: string) => {
-      e.preventDefault(); e.stopPropagation();
+    const deleteBill = async (id: string) => {
       try {
           const updated = await storageService.deleteBill(id);
           setBills(updated);
+          if (selectedBill?.id === id) setSelectedBill(null);
           notify('تم حذف الفاتورة', 'info');
       } catch (e) { notify('خطأ في الحذف', 'error'); }
   };
@@ -468,8 +491,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings }) => {
     if(selectedLoan) setSelectedLoan(null); 
   };
 
-  const handleEditBill = (e: React.MouseEvent, bill: Bill) => {
-      e.preventDefault(); e.stopPropagation();
+  const handleEditBill = (bill: Bill) => {
       setEditingBillId(bill.id);
       setNewBill({
           provider: bill.provider,
@@ -485,9 +507,9 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings }) => {
           endDateMode: bill.durationMonths ? 'months' : 'date',
           isSubscription: bill.isSubscription || false,
           renewalDate: bill.renewalDate || '',
-          icon: bill.icon || ''
       });
       setShowAddBillModal(true);
+      if (selectedBill) setSelectedBill(null);
   };
 
   const markPaymentAsPaid = async (loanId: string, paymentDate: string) => {
@@ -520,14 +542,14 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings }) => {
       return <span className="text-3xl">{iconString}</span>;
   };
 
-  const getBillIcon = (type: string, customIcon?: string) => {
-     if (customIcon) {
-         if (customIcon.startsWith('data:image')) {
-             return <img src={customIcon} alt="icon" className="w-full h-full rounded-2xl object-cover" />;
-         }
-         return <span className="text-3xl">{customIcon}</span>;
+  const getBillIcon = (type: string, providerName: string) => {
+     // 1. Try to find auto logo from provider name
+     const autoLogo = getAutoLogo(providerName);
+     if (autoLogo) {
+          return <img src={autoLogo} alt={providerName} className="w-full h-full rounded-2xl object-cover" />;
      }
      
+     // 2. Fallback to generic icons
      if(type === 'subscription') return <RotateCw className="text-purple-500 w-8 h-8"/>;
      switch(type) {
           case 'electricity': return <Zap className="text-amber-500 w-8 h-8" />;
@@ -613,6 +635,57 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings }) => {
       );
   };
 
+  // --- Bill Schedule Generator ---
+  const getBillSchedule = (bill: Bill) => {
+      const schedule = [];
+      const today = new Date();
+      
+      // Scenario 1: It has a start date and duration (Installment-like)
+      if (bill.startDate && bill.durationMonths && bill.durationMonths > 0) {
+          const start = new Date(bill.startDate);
+          for (let i = 0; i < bill.durationMonths; i++) {
+              const date = new Date(start);
+              date.setMonth(start.getMonth() + i);
+              const isPaid = date < today; // Simple logic: if date passed, assume paid for view
+              
+              let amount = bill.amount;
+              if (i === 0 && bill.downPayment) amount = bill.downPayment; // Simplified
+              if (i === bill.durationMonths - 1 && bill.lastPaymentAmount) amount = bill.lastPaymentAmount;
+
+              schedule.push({ date, amount, isPaid, type: 'installment' });
+          }
+      } 
+      // Scenario 2: Subscription (Ongoing)
+      else if (bill.isSubscription) {
+          // Show 3 months history and 9 months future
+          for (let i = -3; i <= 9; i++) {
+              const date = new Date(today);
+              date.setMonth(today.getMonth() + i);
+              // Normalize day if possible (e.g. renewalDate)
+              if (bill.renewalDate) {
+                  const renewalDay = new Date(bill.renewalDate).getDate();
+                  date.setDate(renewalDay);
+              }
+              schedule.push({ 
+                  date, 
+                  amount: bill.amount, 
+                  isPaid: i < 0, 
+                  type: 'subscription' 
+              });
+          }
+      }
+      // Scenario 3: Simple Monthly Bill
+      else {
+           // Show current year context
+           for (let i = -1; i <= 3; i++) {
+              const date = new Date(today);
+              date.setMonth(today.getMonth() + i);
+              schedule.push({ date, amount: bill.amount, isPaid: i < 0, type: 'monthly' });
+           }
+      }
+      return schedule;
+  };
+
   return (
     <div className="pb-20 md:pb-0 animate-fade-in">
       <div className="flex flex-col gap-4 mb-6">
@@ -679,25 +752,25 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings }) => {
                             <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 mb-4">
                                 <div>
                                     <span className="block mb-0.5">المدفوع</span>
-                                    <span className="font-bold text-slate-700 dark:text-slate-300 text-sm">{paid.toLocaleString()}</span>
+                                    <span className="font-bold text-slate-700 dark:text-slate-300 text-sm font-mono">{paid.toLocaleString('en-US')}</span>
                                 </div>
                                 <div className="text-left">
                                     <span className="block mb-0.5">المتبقي</span>
-                                    <span className="font-bold text-rose-600 dark:text-rose-400 text-sm">{remaining.toLocaleString()}</span>
+                                    <span className="font-bold text-rose-600 dark:text-rose-400 text-sm font-mono">{remaining.toLocaleString('en-US')}</span>
                                 </div>
                             </div>
                             
                             <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-3 grid grid-cols-2 gap-3 text-xs mb-3 border border-slate-100 dark:border-slate-700">
                                  <div>
                                     <span className="block text-slate-400 mb-1">القسط القادم</span>
-                                    <span className="font-bold text-base text-slate-800 dark:text-white">
-                                        {nextPayment ? nextPayment.paymentAmount.toLocaleString() : '-'}
+                                    <span className="font-bold text-base text-slate-800 dark:text-white font-mono">
+                                        {nextPayment ? nextPayment.paymentAmount.toLocaleString('en-US') : '-'}
                                     </span>
                                  </div>
                                  <div className="text-left border-r border-slate-200 dark:border-slate-700 pr-3">
                                     <span className="block text-slate-400 mb-1">يستحق في</span>
-                                    <span className="font-bold text-slate-800 dark:text-white">
-                                        {nextPayment ? new Date(nextPayment.paymentDate).toLocaleDateString('ar-EG') : 'مكتمل'}
+                                    <span className="font-bold text-slate-800 dark:text-white font-mono">
+                                        {nextPayment ? new Date(nextPayment.paymentDate).toLocaleDateString('en-GB') : 'مكتمل'}
                                     </span>
                                  </div>
                             </div>
@@ -717,7 +790,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings }) => {
       ) : (
       <div className="space-y-6">
           <div className="flex justify-end mb-4">
-              <button onClick={() => { setShowAddBillModal(true); setEditingBillId(null); setNewBill({ provider: '', type: 'electricity', amount: '', hasEndDate: false, endDate: '', deviceDetails: '', startDate: '', duration: '', lastAmount: '', downPayment: '', endDateMode: 'months', isSubscription: false, renewalDate: '', icon: '' }); }} className="flex items-center justify-center gap-2 bg-emerald-600 text-white px-3 py-2 rounded-lg text-sm font-bold shadow-lg"><Plus size={16}/><span>إضافة جديد</span></button>
+              <button onClick={() => { setShowAddBillModal(true); setEditingBillId(null); setNewBill({ provider: '', type: 'electricity', amount: '', hasEndDate: false, endDate: '', deviceDetails: '', startDate: '', duration: '', lastAmount: '', downPayment: '', endDateMode: 'months', isSubscription: false, renewalDate: '' }); }} className="flex items-center justify-center gap-2 bg-emerald-600 text-white px-3 py-2 rounded-lg text-sm font-bold shadow-lg"><Plus size={16}/><span>إضافة جديد</span></button>
           </div>
           
           {activeTab === 'subscriptions' && (
@@ -729,8 +802,8 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings }) => {
                           <p className="text-sm text-purple-700 dark:text-purple-300">يتم صرف مبالغ صغيرة تتراكم لتصبح كبيرة!</p>
                       </div>
                   </div>
-                  <div className="text-2xl font-bold text-purple-800 dark:text-purple-200">
-                      {(filteredBills.reduce((acc, b) => acc + b.amount, 0) * 12).toLocaleString()} <span className="text-sm">/سنة</span>
+                  <div className="text-2xl font-bold text-purple-800 dark:text-purple-200 font-mono">
+                      {(filteredBills.reduce((acc, b) => acc + b.amount, 0) * 12).toLocaleString('en-US')} <span className="text-sm">/سنة</span>
                   </div>
               </div>
           )}
@@ -747,18 +820,11 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings }) => {
                       : 0;
 
                   return (
-                  <div key={bill.id} className={`bg-white dark:bg-slate-900 p-5 rounded-2xl border shadow-sm relative group hover:shadow-md transition-shadow ${bill.status === 'archived' ? 'opacity-60 grayscale' : ''} ${isExpiringSoon ? 'border-amber-400 ring-1 ring-amber-400' : 'border-slate-100 dark:border-slate-800'}`}>
-                      <div className="absolute top-4 left-4 flex gap-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-                            {activeTab !== 'archive' && <button onClick={(e) => handleArchiveBill(e, bill)} className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full text-slate-500 dark:text-slate-400" title="أرشفة"><Archive size={14} /></button>}
-                            {activeTab === 'archive' && <button onClick={(e) => handleArchiveBill(e, bill)} className="p-2 bg-emerald-100 dark:bg-emerald-900/30 hover:bg-emerald-200 rounded-full text-emerald-600 dark:text-emerald-400" title="استعادة"><RotateCw size={14} /></button>}
-                            <button onClick={(e) => handleEditBill(e, bill)} className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-full text-slate-500 dark:text-slate-400 hover:text-blue-500 dark:hover:text-blue-400"><Edit3 size={14} /></button>
-                            <button onClick={(e) => deleteBill(e, bill.id)} className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-rose-100 dark:hover:bg-rose-900/30 rounded-full text-slate-500 dark:text-slate-400 hover:text-rose-500 dark:hover:text-rose-400"><Trash2 size={14} /></button>
-                      </div>
-
+                  <div key={bill.id} onClick={() => setSelectedBill(bill)} className={`bg-white dark:bg-slate-900 p-5 rounded-2xl border shadow-sm relative group hover:shadow-md transition-all cursor-pointer ${bill.status === 'archived' ? 'opacity-60 grayscale' : ''} ${isExpiringSoon ? 'border-amber-400 ring-1 ring-amber-400' : 'border-slate-100 dark:border-slate-800'}`}>
                       {/* Updated Bill Card Header with Icon on Right & Light Bg in Dark Mode */}
                       <div className="flex items-center gap-4 mb-4">
                           <div className="w-14 h-14 rounded-2xl bg-slate-50 dark:bg-white flex items-center justify-center border border-slate-100 dark:border-slate-300 shadow-sm shrink-0 overflow-hidden">
-                              {getBillIcon(bill.type, bill.icon)}
+                              {getBillIcon(bill.type, bill.provider)}
                           </div>
                           <div>
                               <h4 className="font-bold text-base text-slate-900 dark:text-white">{bill.name}</h4>
@@ -768,14 +834,14 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings }) => {
 
                       <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl mb-3 border border-slate-100 dark:border-slate-700">
                           <span className="text-xs text-slate-500 dark:text-slate-400">القيمة</span>
-                          <span className="font-bold text-xl text-slate-900 dark:text-white">{bill.amount.toFixed(2)}</span>
+                          <span className="font-bold text-xl text-slate-900 dark:text-white font-mono">{bill.amount.toFixed(2)}</span>
                       </div>
                       
                       <div className="space-y-2 pt-2 border-t border-slate-50 dark:border-slate-800">
                           {(bill.startDate || bill.endDate) && (
-                              <div className="flex justify-between text-[10px] text-slate-500 dark:text-slate-400">
-                                  {bill.startDate && <span>البداية: {new Date(bill.startDate).toLocaleDateString('ar-EG')}</span>}
-                                  {bill.endDate && <span>النهاية: {new Date(bill.endDate).toLocaleDateString('ar-EG')}</span>}
+                              <div className="flex justify-between text-[10px] text-slate-500 dark:text-slate-400 font-mono">
+                                  {bill.startDate && <span>البداية: {new Date(bill.startDate).toLocaleDateString('en-GB')}</span>}
+                                  {bill.endDate && <span>النهاية: {new Date(bill.endDate).toLocaleDateString('en-GB')}</span>}
                               </div>
                           )}
                           {bill.durationMonths && (
@@ -801,7 +867,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings }) => {
                               </div>
                               {estimatedRemaining > 0 && (
                                   <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
-                                      إجمالي المتوقع: <span className="text-rose-500 dark:text-rose-400">{estimatedRemaining.toLocaleString()}</span>
+                                      إجمالي المتوقع: <span className="text-rose-500 dark:text-rose-400 font-mono">{estimatedRemaining.toLocaleString('en-US')}</span>
                                   </div>
                               )}
                           </div>
@@ -814,15 +880,97 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings }) => {
                           </div>
                       )}
                       {bill.renewalDate && (
-                          <div className="mt-3 text-xs text-purple-600 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/20 p-2 rounded flex items-center gap-1">
+                          <div className="mt-3 text-xs text-purple-600 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/20 p-2 rounded flex items-center gap-1 font-mono">
                               <Calendar size={12}/>
-                              تجديد: {new Date(bill.renewalDate).toLocaleDateString('ar-EG')}
+                              تجديد: {new Date(bill.renewalDate).toLocaleDateString('en-GB')}
                           </div>
                       )}
                   </div>
               )})}
           </div>
       </div>
+      )}
+
+      {/* Bill Details Modal with Schedule */}
+      {selectedBill && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-3xl shadow-2xl animate-scale-in max-h-[90vh] flex flex-col overflow-hidden">
+                <div className="p-6 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 flex flex-col gap-4">
+                    <div className="flex justify-between items-start">
+                         <div className="flex items-center gap-3">
+                             <div className="w-14 h-14 rounded-xl bg-white dark:bg-white flex items-center justify-center border border-slate-200 shadow-sm shrink-0 overflow-hidden">
+                                {getBillIcon(selectedBill.type, selectedBill.provider)}
+                             </div>
+                             <div>
+                                <h3 className="font-bold text-xl text-slate-800 dark:text-white">
+                                    {selectedBill.name}
+                                </h3>
+                                <p className="text-sm text-slate-500 dark:text-slate-400">{selectedBill.provider}</p>
+                             </div>
+                         </div>
+                         <button onClick={() => setSelectedBill(null)} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors text-slate-500"><X size={24}/></button>
+                    </div>
+                    
+                    <div className="flex flex-wrap gap-2">
+                         {activeTab !== 'archive' && <button onClick={(e) => {handleArchiveBill(e, selectedBill); setSelectedBill(null);}} className="bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-1"><Archive size={14}/> أرشفة</button>}
+                         {activeTab === 'archive' && <button onClick={(e) => {handleArchiveBill(e, selectedBill); setSelectedBill(null);}} className="bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300 px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-1"><RotateCw size={14}/> استعادة</button>}
+                         <button onClick={() => { handleEditBill(selectedBill); }} className="bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-300 px-3 py-2 rounded-lg text-sm font-bold border border-blue-200 dark:border-blue-800 flex items-center gap-1"><Edit3 size={14}/> تعديل</button>
+                         <button onClick={() => deleteBill(selectedBill.id)} className="bg-rose-50 text-rose-600 dark:bg-rose-900/20 dark:text-rose-300 px-3 py-2 rounded-lg text-sm font-bold border border-rose-200 dark:border-rose-800 flex items-center gap-1"><Trash2 size={14}/> حذف</button>
+                    </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-0">
+                    <div className="p-4 bg-slate-50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800">
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div className="bg-white dark:bg-slate-800 p-3 rounded-xl border dark:border-slate-700">
+                                <span className="text-slate-400 text-xs block mb-1">المبلغ</span>
+                                <span className="font-bold text-lg dark:text-white font-mono">{selectedBill.amount.toLocaleString('en-US')}</span>
+                            </div>
+                            <div className="bg-white dark:bg-slate-800 p-3 rounded-xl border dark:border-slate-700">
+                                <span className="text-slate-400 text-xs block mb-1">تاريخ البداية</span>
+                                <span className="font-bold dark:text-white font-mono">{selectedBill.startDate ? new Date(selectedBill.startDate).toLocaleDateString('en-GB') : 'غير محدد'}</span>
+                            </div>
+                            {selectedBill.deviceDetails && (
+                                <div className="col-span-2 bg-white dark:bg-slate-800 p-3 rounded-xl border dark:border-slate-700">
+                                    <span className="text-slate-400 text-xs block mb-1">تفاصيل الجهاز</span>
+                                    <span className="font-bold dark:text-white flex items-center gap-2"><Smartphone size={14}/> {selectedBill.deviceDetails}</span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="p-4">
+                        <h4 className="font-bold text-sm text-slate-500 dark:text-slate-400 mb-3 flex items-center gap-2"><ListChecks size={16}/> جدول الدفعات / السداد</h4>
+                        <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
+                            <table className="w-full text-sm text-left rtl:text-right text-slate-500 dark:text-slate-400">
+                                <thead className="text-xs text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800">
+                                    <tr>
+                                        <th className="px-4 py-3">التاريخ</th>
+                                        <th className="px-4 py-3">المبلغ</th>
+                                        <th className="px-4 py-3">الحالة</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {getBillSchedule(selectedBill).map((item, idx) => (
+                                        <tr key={idx} className={`border-b border-slate-100 dark:border-slate-800 last:border-0 ${item.isPaid ? 'bg-slate-50/50 dark:bg-slate-800/30' : 'bg-white dark:bg-slate-900'}`}>
+                                            <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-200 font-mono">{item.date.toLocaleDateString('en-GB')}</td>
+                                            <td className="px-4 py-3 font-bold font-mono">{item.amount.toLocaleString('en-US')}</td>
+                                            <td className="px-4 py-3">
+                                                {item.isPaid ? (
+                                                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"><CheckCircle size={12}/> مدفوع</span>
+                                                ) : (
+                                                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"><Clock size={12}/> قادم</span>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+          </div>
       )}
 
       {/* Loan Details Modal */}
@@ -852,7 +1000,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings }) => {
                     {selectedLoan.schedule.length > 0 && selectedLoan.schedule[selectedLoan.schedule.length - 1].paymentAmount > (selectedLoan.schedule[0].paymentAmount * 1.5) && (
                         <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 text-sm text-amber-800 dark:text-amber-300 flex items-center gap-2">
                             <AlertCircle size={18}/>
-                            <span>تنبيه: توجد دفعة أخيرة كبيرة بقيمة <b>{selectedLoan.schedule[selectedLoan.schedule.length - 1].paymentAmount.toLocaleString()}</b> تستحق في {new Date(selectedLoan.schedule[selectedLoan.schedule.length - 1].paymentDate).toLocaleDateString()}. استعد لها!</span>
+                            <span>تنبيه: توجد دفعة أخيرة كبيرة بقيمة <b>{selectedLoan.schedule[selectedLoan.schedule.length - 1].paymentAmount.toLocaleString('en-US')}</b> تستحق في {new Date(selectedLoan.schedule[selectedLoan.schedule.length - 1].paymentDate).toLocaleDateString('en-GB')}. استعد لها!</span>
                         </div>
                     )}
                 </div>
@@ -863,9 +1011,9 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings }) => {
                             <tbody>
                                 {selectedLoan.schedule.map((item, idx) => (
                                     <tr key={idx} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                                        <td className="px-6 py-4">{new Date(item.paymentDate).toLocaleDateString('ar-EG')}</td>
-                                        <td className="px-6 py-4 font-bold text-slate-700 dark:text-slate-200">{item.paymentAmount.toFixed(2)}</td>
-                                        <td className="px-6 py-4">{item.remainingBalance.toFixed(2)}</td>
+                                        <td className="px-6 py-4 font-mono">{new Date(item.paymentDate).toLocaleDateString('en-GB')}</td>
+                                        <td className="px-6 py-4 font-bold text-slate-700 dark:text-slate-200 font-mono">{item.paymentAmount.toFixed(2)}</td>
+                                        <td className="px-6 py-4 font-mono">{item.remainingBalance.toFixed(2)}</td>
                                         <td className="px-6 py-4"><button onClick={()=>markPaymentAsPaid(selectedLoan.id, item.paymentDate)} className={`px-3 py-1 rounded-full text-xs font-bold ${item.isPaid ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-slate-100 dark:bg-slate-800 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'}`}>{item.isPaid ? 'مدفوع' : 'سداد'}</button></td>
                                     </tr>
                                 ))}
@@ -884,7 +1032,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings }) => {
                   <div className="space-y-4 text-center">
                       <div className="p-4 bg-emerald-50 dark:bg-emerald-900/30 rounded-xl">
                           <p className="text-sm text-slate-500 dark:text-slate-400">المبلغ المطلوب للسداد اليوم</p>
-                          <h2 className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{calculateEarlySettlement().toLocaleString()} SAR</h2>
+                          <h2 className="text-3xl font-bold text-emerald-600 dark:text-emerald-400 font-mono">{calculateEarlySettlement().toLocaleString('en-US')} SAR</h2>
                       </div>
                       <p className="text-xs text-slate-400">* يشمل المبلغ المتبقي من الأصل + أرباح 3 أشهر قادمة (حسب تقديرات البنك المركزي السعودي التقريبية).</p>
                   </div>
@@ -893,102 +1041,134 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings }) => {
           </div>
       )}
 
-      {/* Add Bill/Subscription Modal */}
+      {/* Add Bill/Subscription Modal (REDESIGNED) */}
       {showAddBillModal && (
           <div className="fixed inset-0 z-50 flex items-start md:items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto">
-              <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md p-4 md:p-6 animate-fade-in my-4 md:my-8 border border-slate-200 dark:border-slate-800">
-                  <h3 className="text-xl font-bold mb-4 text-slate-900 dark:text-white">{editingBillId ? 'تعديل الفاتورة/الالتزام' : 'إضافة التزام / اشتراك'}</h3>
-                   {/* PDF Upload Section */}
-                   <div className="mb-6 p-4 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800/50 text-center relative group hover:border-emerald-400 transition-colors">
+              <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl p-6 animate-fade-in my-4 md:my-8 border border-slate-200 dark:border-slate-800 relative">
+                   <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-100 dark:border-slate-800">
+                      <div>
+                          <h3 className="text-xl font-bold text-slate-900 dark:text-white">{editingBillId ? 'تعديل الفاتورة/الالتزام' : 'إضافة التزام جديد'}</h3>
+                          <p className="text-xs text-slate-500">أضف فواتيرك، اشتراكاتك، أو أقساط الأجهزة</p>
+                      </div>
+                      <button onClick={() => setShowAddBillModal(false)} className="text-slate-400 hover:text-slate-600"><X size={24}/></button>
+                   </div>
+                   
+                   {/* PDF Upload Section (Compact) */}
+                   <div className="mb-6 flex gap-4 items-center p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 group relative overflow-hidden">
                       <input type="file" accept="application/pdf" onChange={handleBillPdfChange} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10" />
-                      <div className="flex flex-col items-center justify-center gap-2">
-                          {isParsingBill ? <Loader2 className="animate-spin text-emerald-500" size={32} /> : <UploadCloud className="text-slate-400 group-hover:text-emerald-500 transition-colors" size={32} />}
-                          <p className="text-sm font-bold text-slate-600 dark:text-slate-300">ارفع الفاتورة (PDF)</p>
-                          <p className="text-xs text-slate-400">سيقوم الذكاء الاصطناعي بقراءتها وتعبئة البيانات</p>
+                      <div className="p-3 bg-white dark:bg-slate-700 rounded-full shadow-sm text-emerald-500">
+                           {isParsingBill ? <Loader2 className="animate-spin" size={20} /> : <UploadCloud size={20} />}
+                      </div>
+                      <div className="flex-1">
+                          <p className="text-sm font-bold text-slate-800 dark:text-white">تعبئة تلقائية من الفاتورة</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">ارفع ملف PDF وسيتم استخراج البيانات</p>
+                      </div>
+                      <div className="text-xs font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 px-3 py-1.5 rounded-lg flex items-center gap-1 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                          <Wand2 size={12} />
+                          استيراد
                       </div>
                    </div>
                    
-                  <form onSubmit={handleAddBill} className="space-y-4">
-                      {/* ... Provider/Amount inputs same ... */}
-                      <div>
-                          <label className="block text-sm mb-1 text-slate-700 dark:text-slate-300">النوع</label>
-                          <select className="w-full p-3 border dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500" value={newBill.type} onChange={e=>setNewBill({...newBill, type: e.target.value as any})}>
-                              <option value="electricity">كهرباء</option>
-                              <option value="water">مياه</option>
-                              <option value="internet">انترنت</option>
-                              <option value="subscription">اشتراك (Netflix, Gym...)</option>
-                              <option value="device_installment">أقساط جهاز</option>
-                              <option value="other">أخرى</option>
-                          </select>
-                      </div>
-                      
-                      <div>
-                          <label className="block text-sm mb-1 text-slate-700 dark:text-slate-300">المزود / الاسم</label>
-                          <input type="text" className="w-full p-3 border dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500" value={newBill.provider} onChange={e=>setNewBill({...newBill, provider: e.target.value})} placeholder="STC, Netflix..." required/>
-                      </div>
-                      
-                      <div>
-                          <label className="block text-sm mb-1 text-slate-700 dark:text-slate-300">المبلغ</label>
-                          <input type="number" className="w-full p-3 border dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 dark:text-white font-bold outline-none focus:ring-2 focus:ring-emerald-500" value={newBill.amount} onChange={e=>setNewBill({...newBill, amount: e.target.value})} required/>
+                  <form onSubmit={handleAddBill} className="space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          {/* Left Column: Basic Info */}
+                          <div className="space-y-4">
+                              <div>
+                                  <label className="block text-xs font-bold text-slate-500 mb-1.5">نوع الالتزام</label>
+                                  <div className="relative">
+                                      <select className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500 appearance-none" value={newBill.type} onChange={e=>setNewBill({...newBill, type: e.target.value as any})}>
+                                          <option value="electricity">⚡ فاتورة كهرباء</option>
+                                          <option value="water">💧 فاتورة مياه</option>
+                                          <option value="internet">🌐 انترنت / اتصالات</option>
+                                          <option value="subscription">🔄 اشتراك شهري/سنوي</option>
+                                          <option value="device_installment">📱 أقساط جهاز</option>
+                                          <option value="other">📄 أخرى</option>
+                                      </select>
+                                      <ChevronRight className="absolute left-3 top-3.5 text-slate-400 rotate-90" size={16}/>
+                                  </div>
+                              </div>
+                              
+                              <div>
+                                  <label className="block text-xs font-bold text-slate-500 mb-1.5">المزود / اسم الشركة</label>
+                                  <input type="text" className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500 placeholder:text-slate-400" value={newBill.provider} onChange={e=>setNewBill({...newBill, provider: e.target.value})} placeholder="مثال: STC, Netflix, الكهرباء..." required/>
+                                  <p className="text-[10px] text-emerald-600 mt-1 flex items-center gap-1"><Sparkles size={10}/> سيتم جلب الشعار تلقائياً بناءً على الاسم</p>
+                              </div>
+                          </div>
+
+                          {/* Right Column: Amount & Icon Preview */}
+                          <div className="space-y-4">
+                              <div>
+                                  <label className="block text-xs font-bold text-slate-500 mb-1.5">المبلغ الدوري</label>
+                                  <div className="relative">
+                                      <input type="number" step="0.01" className="w-full p-3 pl-12 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 dark:text-white font-bold text-lg outline-none focus:ring-2 focus:ring-emerald-500" value={newBill.amount} onChange={e=>setNewBill({...newBill, amount: e.target.value})} required placeholder="0.00"/>
+                                      <span className="absolute left-4 top-4 text-xs font-bold text-slate-400">SAR</span>
+                                  </div>
+                              </div>
+                          </div>
                       </div>
 
-                      <div>
-                          <label className="block text-sm mb-1 text-slate-700 dark:text-slate-300">أيقونة رمزية (اختياري)</label>
-                          <IconPicker selected={newBill.icon} onSelect={(icon) => setNewBill({...newBill, icon})} />
-                      </div>
-                      
+                      {/* Dynamic Sections based on Type */}
                       {newBill.type === 'device_installment' && (
-                        <div className="space-y-4 bg-slate-50 dark:bg-slate-800 p-4 rounded-xl border border-slate-100 dark:border-slate-700">
-                             <h4 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2"><Smartphone size={16}/> تفاصيل الجهاز</h4>
-                             
-                             <div>
-                                <label className="block text-xs mb-1 text-slate-500">اسم الجهاز</label>
-                                <input type="text" value={newBill.deviceDetails} onChange={e=>setNewBill({...newBill, deviceDetails: e.target.value})} className="w-full p-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 dark:text-white" placeholder="iPhone 15 Pro Max..."/>
-                             </div>
-
-                             <div>
-                                <label className="block text-xs mb-1 text-slate-500">الدفعة الأولى (إن وجدت)</label>
-                                <input type="number" value={newBill.downPayment} onChange={e=>setNewBill({...newBill, downPayment: e.target.value})} className="w-full p-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 dark:text-white" placeholder="0"/>
-                             </div>
-
-                             <div>
-                                <label className="block text-xs mb-1 text-slate-500">تاريخ بداية العقد</label>
-                                <input type="date" value={newBill.startDate} onChange={e=>setNewBill({...newBill, startDate: e.target.value})} className="w-full p-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 dark:text-white"/>
+                        <div className="bg-slate-50 dark:bg-slate-800/50 p-5 rounded-xl border border-slate-200 dark:border-slate-700 space-y-4 animate-slide-up">
+                             <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-700 pb-2 mb-2">
+                                <Smartphone size={16} className="text-slate-500"/>
+                                <h4 className="font-bold text-sm text-slate-700 dark:text-slate-200">تفاصيل عقد الجهاز</h4>
                              </div>
                              
-                             <div className="flex gap-2">
-                                <button type="button" onClick={()=>setNewBill({...newBill, endDateMode: 'months'})} className={`flex-1 text-xs py-2 rounded-lg border ${newBill.endDateMode === 'months' ? 'bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300' : 'bg-white dark:bg-slate-700 dark:border-slate-600'}`}>بالأشهر</button>
-                                <button type="button" onClick={()=>setNewBill({...newBill, endDateMode: 'date'})} className={`flex-1 text-xs py-2 rounded-lg border ${newBill.endDateMode === 'date' ? 'bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300' : 'bg-white dark:bg-slate-700 dark:border-slate-600'}`}>بتاريخ الانتهاء</button>
+                             <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">اسم الجهاز</label>
+                                <input type="text" value={newBill.deviceDetails} onChange={e=>setNewBill({...newBill, deviceDetails: e.target.value})} className="w-full p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg dark:text-white focus:border-emerald-500 outline-none" placeholder="iPhone 15 Pro Max..."/>
+                             </div>
+
+                             <div className="grid grid-cols-2 gap-4">
+                                 <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1">تاريخ البداية</label>
+                                    <input type="date" value={newBill.startDate} onChange={e=>setNewBill({...newBill, startDate: e.target.value})} className="w-full p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg dark:text-white focus:border-emerald-500 outline-none"/>
+                                 </div>
+                                 <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1">الدفعة الأولى (إن وجدت)</label>
+                                    <input type="number" value={newBill.downPayment} onChange={e=>setNewBill({...newBill, downPayment: e.target.value})} className="w-full p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg dark:text-white focus:border-emerald-500 outline-none" placeholder="0"/>
+                                 </div>
+                             </div>
+                             
+                             <div>
+                                 <label className="block text-xs font-bold text-slate-500 mb-2">طريقة تحديد النهاية</label>
+                                 <div className="flex gap-2 p-1 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-600 w-fit">
+                                    <button type="button" onClick={()=>setNewBill({...newBill, endDateMode: 'months'})} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${newBill.endDateMode === 'months' ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300' : 'text-slate-500'}`}>عدد الأشهر</button>
+                                    <button type="button" onClick={()=>setNewBill({...newBill, endDateMode: 'date'})} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${newBill.endDateMode === 'date' ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300' : 'text-slate-500'}`}>تاريخ انتهاء</button>
+                                 </div>
                              </div>
 
                              {newBill.endDateMode === 'months' ? (
                                  <div>
-                                    <label className="block text-xs mb-1 text-slate-500">المدة (شهر)</label>
-                                    <input type="number" value={newBill.duration} onChange={e=>setNewBill({...newBill, duration: e.target.value})} className="w-full p-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 dark:text-white" placeholder="12, 24..."/>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1">المدة (شهر)</label>
+                                    <input type="number" value={newBill.duration} onChange={e=>setNewBill({...newBill, duration: e.target.value})} className="w-full p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg dark:text-white focus:border-emerald-500 outline-none" placeholder="12, 24..."/>
                                  </div>
                              ) : (
                                  <div>
-                                    <label className="block text-xs mb-1 text-slate-500">تاريخ نهاية العقد</label>
-                                    <input type="date" value={newBill.endDate} onChange={e=>setNewBill({...newBill, endDate: e.target.value})} className="w-full p-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 dark:text-white"/>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1">تاريخ نهاية العقد</label>
+                                    <input type="date" value={newBill.endDate} onChange={e=>setNewBill({...newBill, endDate: e.target.value})} className="w-full p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg dark:text-white focus:border-emerald-500 outline-none"/>
                                  </div>
                              )}
-
-                             <div>
-                                <label className="block text-xs mb-1 text-slate-500">الدفعة الأخيرة (إن اختلفت)</label>
-                                <input type="number" value={newBill.lastAmount} onChange={e=>setNewBill({...newBill, lastAmount: e.target.value})} className="w-full p-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 dark:text-white" placeholder="0"/>
-                             </div>
                         </div>
                       )}
 
                       {newBill.type === 'subscription' && (
-                          <div>
-                              <label className="block text-sm mb-1 text-slate-700 dark:text-slate-300">تاريخ التجديد القادم</label>
-                              <input type="date" className="w-full p-3 border dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500" value={newBill.renewalDate} onChange={e=>setNewBill({...newBill, renewalDate: e.target.value})} />
+                          <div className="bg-slate-50 dark:bg-slate-800/50 p-5 rounded-xl border border-slate-200 dark:border-slate-700 space-y-4 animate-slide-up">
+                              <div>
+                                  <label className="block text-xs font-bold text-slate-500 mb-1">تاريخ التجديد القادم</label>
+                                  <input type="date" className="w-full p-3 border border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500" value={newBill.renewalDate} onChange={e=>setNewBill({...newBill, renewalDate: e.target.value})} />
+                              </div>
                           </div>
                       )}
 
-                      <button type="submit" className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold hover:bg-emerald-700">حفظ</button>
-                      <button type="button" onClick={() => setShowAddBillModal(false)} className="w-full text-slate-500 dark:text-slate-400 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg">إلغاء</button>
+                      <div className="flex gap-3 pt-2">
+                          <button type="button" onClick={() => setShowAddBillModal(false)} className="flex-1 text-slate-600 dark:text-slate-300 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl font-bold transition-colors">إلغاء</button>
+                          <button type="submit" className="flex-[2] bg-slate-900 dark:bg-[#bef264] text-white dark:text-slate-900 py-3 rounded-xl font-bold hover:shadow-lg hover:-translate-y-0.5 transition-all flex justify-center items-center gap-2">
+                              <Save size={18} />
+                              <span>حفظ الالتزام</span>
+                          </button>
+                      </div>
                   </form>
               </div>
           </div>
@@ -1048,7 +1228,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings }) => {
                     {manualSchedule.map((item, idx) => (
                         <div key={idx} className="flex items-center gap-3 text-sm border-b border-slate-50 dark:border-slate-800 pb-2">
                             <span className="w-8 text-slate-400 font-mono">#{idx+1}</span>
-                            <span className="w-24 text-slate-600 dark:text-slate-300 text-xs">{item.date}</span>
+                            <span className="w-24 text-slate-600 dark:text-slate-300 text-xs font-mono">{item.date}</span>
                             <input 
                                 type="number" 
                                 value={item.amount} 
@@ -1062,7 +1242,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings }) => {
                 <div className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center">
                     <div>
                         <p className="text-xs text-slate-400">المجموع الكلي</p>
-                        <p className="font-bold text-lg text-slate-900 dark:text-white">{manualSchedule.reduce((a,b)=>a+b.amount,0).toLocaleString()}</p>
+                        <p className="font-bold text-lg text-slate-900 dark:text-white font-mono">{manualSchedule.reduce((a,b)=>a+b.amount,0).toLocaleString('en-US')}</p>
                     </div>
                     <button onClick={confirmManualSchedule} className="bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-emerald-700">اعتماد الجدول</button>
                 </div>

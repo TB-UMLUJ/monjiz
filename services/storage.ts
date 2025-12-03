@@ -1,5 +1,6 @@
+
 import { supabase, DEFAULT_USER_ID } from './supabaseClient';
-import { Transaction, Loan, UserSettings, TransactionType, LoanType, IncomeSource, BankCard, LoanScheduleItem, Bill, FinancialGoal, RecurringTransaction, CustomCategory, LogoPosition } from '../types';
+import { Transaction, Loan, UserSettings, TransactionType, LoanType, IncomeSource, BankCard, LoanScheduleItem, Bill, FinancialGoal, RecurringTransaction, CustomCategory, LogoPosition, EntityLogo } from '../types';
 
 // Helper to ensure we never send NaN or Infinity to DB
 const safeNumber = (num: any): number => {
@@ -15,7 +16,7 @@ const safeDate = (date: any): string | null => {
 
 // Default Fallbacks
 const DEFAULT_INCOME: IncomeSource[] = [
-  { id: '1', name: 'الراتب الأساسي', amount: 0, dayOfMonth: 27 }
+  { id: '1', name: 'الراتب الأساسي', amount: 0, dayOfMonth: 27, basicSalary: 0, gosiDeduction: 0, allowances: [] }
 ];
 
 const DEFAULT_CARDS: BankCard[] = [
@@ -434,6 +435,37 @@ export const storageService = {
       return storageService.getGoals();
   },
 
+  // --- Entity Logos (Centralized Icons) ---
+  getLogos: async (): Promise<EntityLogo[]> => {
+      const { data, error } = await supabase.from('bank_logos').select('*');
+      if (error) {
+          console.error("Error fetching logos:", error);
+          return [];
+      }
+      return data.map((l: any) => ({
+          id: l.id,
+          name: l.bank_name,
+          logoUrl: l.logo_url
+      }));
+  },
+
+  saveLogo: async (name: string, logoUrl: string): Promise<EntityLogo[]> => {
+      // Upsert based on name
+      const { error } = await supabase.from('bank_logos').upsert({
+          bank_name: name,
+          logo_url: logoUrl
+      }, { onConflict: 'bank_name' });
+      
+      if (error) throw error;
+      return storageService.getLogos();
+  },
+
+  deleteLogo: async (id: string): Promise<EntityLogo[]> => {
+      const { error } = await supabase.from('bank_logos').delete().eq('id', id);
+      if (error) throw error;
+      return storageService.getLogos();
+  },
+
   // --- Settings ---
   getSettings: async (): Promise<UserSettings> => {
     try {
@@ -443,7 +475,7 @@ export const storageService = {
         const { data: recurringData } = await supabase.from('recurring_transactions').select('*').eq('user_id', DEFAULT_USER_ID);
         const { data: catsData } = await supabase.from('custom_categories').select('*').eq('user_id', DEFAULT_USER_ID);
         
-        // Fetch Bank Logos
+        // Fetch Bank Logos to auto-apply to cards
         const { data: logosData } = await supabase.from('bank_logos').select('*');
 
         if (!settingsData) return DEFAULT_SETTINGS;
@@ -455,14 +487,22 @@ export const storageService = {
             theme: settingsData.theme || 'system',
             budgetRollover: settingsData.budget_rollover || false,
             privacyMode: false,
-            incomeSources: (incomeData || []).map((i: any) => ({
-                id: i.id,
-                name: i.name,
-                amount: Number(i.amount),
-                dayOfMonth: i.day_of_month
-            })),
+            incomeSources: (incomeData || []).map((i: any) => {
+                const details = i.details || {};
+                return {
+                  id: i.id,
+                  name: i.name,
+                  amount: Number(i.amount),
+                  dayOfMonth: i.day_of_month,
+                  // New detailed salary fields
+                  basicSalary: details.basicSalary || 0,
+                  gosiDeduction: details.gosiDeduction || 0,
+                  allowances: details.allowances || []
+                };
+            }),
             cards: (cardsData || []).map((c: any) => {
                 // Determine logo: user set > mapped > undefined
+                // Auto-map logo from centralized table if not manually set on card, or update it
                 const mappedLogo = logosData?.find((l: any) => c.bank_name && l.bank_name.includes(c.bank_name))?.logo_url;
                 return {
                     id: c.id,
@@ -472,7 +512,7 @@ export const storageService = {
                     cardType: c.card_type,
                     color: c.color,
                     balance: Number(c.balance),
-                    logoUrl: c.logo_url || mappedLogo,
+                    logoUrl: c.logo_url || mappedLogo, 
                     logoPosition: c.logo_position || 'top-left'
                 };
             }),
@@ -545,13 +585,20 @@ export const storageService = {
     }
     
     // 3. Other Sub-tables (Delete/Insert is fine as no FKs depend on them)
+    // Income Sources - Need to handle details JSON
     await supabase.from('income_sources').delete().eq('user_id', DEFAULT_USER_ID);
     if (settings.incomeSources.length > 0) {
         await supabase.from('income_sources').insert(settings.incomeSources.map(i => ({
             user_id: DEFAULT_USER_ID,
             name: i.name,
             amount: safeNumber(i.amount),
-            day_of_month: i.dayOfMonth
+            day_of_month: i.dayOfMonth,
+            // Pack details into JSON column
+            details: {
+               basicSalary: safeNumber(i.basicSalary),
+               gosiDeduction: safeNumber(i.gosiDeduction),
+               allowances: i.allowances || []
+            }
         })));
     }
 
@@ -584,5 +631,62 @@ export const storageService = {
 
     // IMPORTANT: Return fresh data to update client state with valid UUIDs
     return storageService.getSettings();
+  },
+
+  // --- AUTOMATION: Recurring Income (Salary) Check ---
+  processRecurringIncomes: async (): Promise<number> => {
+      try {
+          const settings = await storageService.getSettings();
+          const today = new Date();
+          const currentDay = today.getDate();
+          const currentMonth = today.getMonth(); // 0-11
+          const currentYear = today.getFullYear();
+
+          let addedCount = 0;
+
+          // Process each income source
+          for (const income of settings.incomeSources) {
+              if (currentDay >= income.dayOfMonth) {
+                  // Check if transaction already exists for this month/year for this income
+                  // We look for a transaction with category='راتب' (or specific) and the specific note pattern
+                  // Or better, we query transactions in current month range
+                  
+                  const startOfMonth = new Date(currentYear, currentMonth, 1).toISOString();
+                  const endOfMonth = new Date(currentYear, currentMonth + 1, 0).toISOString();
+                  
+                  // Note: Supabase filtering on json/note is tricky if note is free text.
+                  // We'll rely on a specific note format: "إيداع تلقائي: [Income Name]"
+                  
+                  const { data: existingTx } = await supabase
+                      .from('transactions')
+                      .select('id')
+                      .eq('user_id', DEFAULT_USER_ID)
+                      .eq('type', 'income')
+                      .gte('date', startOfMonth)
+                      .lte('date', endOfMonth)
+                      .ilike('note', `%${income.name}%`) // Basic check
+                      .limit(1);
+                  
+                  if (!existingTx || existingTx.length === 0) {
+                      // Add Transaction
+                      const tx: Transaction = {
+                          id: '',
+                          amount: income.amount,
+                          type: TransactionType.INCOME,
+                          category: 'راتب',
+                          date: today.toISOString(),
+                          note: `إيداع تلقائي: ${income.name}`,
+                          cardId: settings.cards.length > 0 ? settings.cards[0].id : undefined // Default to first card
+                      };
+                      await storageService.saveTransaction(tx);
+                      addedCount++;
+                  }
+              }
+          }
+          return addedCount;
+      } catch (e) {
+          console.error("Error processing recurring incomes:", e);
+          return 0;
+      }
   }
 };

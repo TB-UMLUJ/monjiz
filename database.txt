@@ -45,6 +45,8 @@ ALTER TABLE public.income_sources ADD COLUMN IF NOT EXISTS user_id UUID REFERENC
 ALTER TABLE public.income_sources ADD COLUMN IF NOT EXISTS name VARCHAR(255);
 ALTER TABLE public.income_sources ADD COLUMN IF NOT EXISTS amount DECIMAL(12, 2);
 ALTER TABLE public.income_sources ADD COLUMN IF NOT EXISTS day_of_month INTEGER;
+-- New column to store breakdown (Basic, Gosi, Allowances)
+ALTER TABLE public.income_sources ADD COLUMN IF NOT EXISTS details JSONB DEFAULT '{}'::jsonb;
 ALTER TABLE public.income_sources ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
 
 -- BANK CARDS
@@ -96,7 +98,6 @@ ALTER TABLE public.loans ADD COLUMN IF NOT EXISTS interest_rate DECIMAL(5, 2);
 ALTER TABLE public.loans ADD COLUMN IF NOT EXISTS type loan_type;
 ALTER TABLE public.loans ADD COLUMN IF NOT EXISTS status loan_status DEFAULT 'active';
 ALTER TABLE public.loans ADD COLUMN IF NOT EXISTS contract_pdf TEXT;
--- Changed to TEXT to support Base64 images
 ALTER TABLE public.loans ADD COLUMN IF NOT EXISTS icon TEXT;
 ALTER TABLE public.loans ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
 
@@ -131,7 +132,6 @@ ALTER TABLE public.bills ADD COLUMN IF NOT EXISTS down_payment DECIMAL(12, 2);
 ALTER TABLE public.bills ADD COLUMN IF NOT EXISTS is_subscription BOOLEAN DEFAULT FALSE;
 ALTER TABLE public.bills ADD COLUMN IF NOT EXISTS renewal_date DATE;
 ALTER TABLE public.bills ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'active'; 
--- Changed to TEXT to support Base64 images
 ALTER TABLE public.bills ADD COLUMN IF NOT EXISTS icon TEXT;
 ALTER TABLE public.bills ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
 
@@ -143,7 +143,6 @@ ALTER TABLE public.financial_goals ADD COLUMN IF NOT EXISTS user_id UUID REFEREN
 ALTER TABLE public.financial_goals ADD COLUMN IF NOT EXISTS name VARCHAR(255);
 ALTER TABLE public.financial_goals ADD COLUMN IF NOT EXISTS target_amount DECIMAL(12, 2);
 ALTER TABLE public.financial_goals ADD COLUMN IF NOT EXISTS current_amount DECIMAL(12, 2);
--- Changed to TEXT to support Base64 images
 ALTER TABLE public.financial_goals ADD COLUMN IF NOT EXISTS icon TEXT;
 ALTER TABLE public.financial_goals ADD COLUMN IF NOT EXISTS color VARCHAR(50);
 ALTER TABLE public.financial_goals ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
@@ -167,14 +166,14 @@ CREATE TABLE IF NOT EXISTS public.custom_categories (
 );
 ALTER TABLE public.custom_categories ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES public.users(id) ON DELETE CASCADE;
 ALTER TABLE public.custom_categories ADD COLUMN IF NOT EXISTS name VARCHAR(100);
--- Changed to TEXT to support Base64 images
 ALTER TABLE public.custom_categories ADD COLUMN IF NOT EXISTS icon TEXT;
 ALTER TABLE public.custom_categories ADD COLUMN IF NOT EXISTS color VARCHAR(20);
 ALTER TABLE public.custom_categories ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
 
 -- *** MIGRATION COMMANDS ***
--- Run these to fix existing tables if they were created with VARCHAR(50)
+-- Run these to fix existing tables
 ALTER TABLE public.loans ALTER COLUMN icon TYPE TEXT;
 ALTER TABLE public.bills ALTER COLUMN icon TYPE TEXT;
 ALTER TABLE public.financial_goals ALTER COLUMN icon TYPE TEXT;
 ALTER TABLE public.custom_categories ALTER COLUMN icon TYPE TEXT;
+ALTER TABLE public.income_sources ADD COLUMN IF NOT EXISTS details JSONB DEFAULT '{}'::jsonb;
