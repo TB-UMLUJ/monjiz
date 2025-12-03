@@ -1,5 +1,3 @@
-
-
 import React, { useEffect, useState } from 'react';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
@@ -133,7 +131,7 @@ const AppContent: React.FC = () => {
           />
         );
       case 'loans':
-        return <LoansPage loans={loans} setLoans={setLoans} settings={settings} />;
+        return <LoansPage loans={loans} setLoans={setLoans} settings={settings} setSettings={setSettings} />;
       case 'transactions':
         return <Transactions transactions={transactions} setTransactions={setTransactions} settings={settings} setSettings={setSettings} />;
       case 'budget':

@@ -1,18 +1,17 @@
-
-
 import React, { useState, useEffect, useRef } from 'react';
-import { Loan, LoanType, Bill, EntityLogo } from '../types';
+import { Loan, LoanType, Bill, EntityLogo, Transaction, TransactionType, UserSettings } from '../types';
 import { calculateLoanSchedule, calculateDurationInMonths } from '../services/loanCalculator';
 import { storageService } from '../services/storage';
 import { parseLoanDetailsFromText, parseBillFromPdf } from '../services/geminiService';
-import { Plus, Trash2, CheckCircle, Calculator, FileText, UploadCloud, Calendar, Download, Loader2, AlertCircle, Sparkles, Wand2, X, Settings2, Edit3, ListChecks, RefreshCcw, Copy, Zap, Droplet, Wifi, Smartphone, Landmark, Receipt, Clock, Coins, Eye, TrendingDown, Hourglass, Archive, RotateCw, PlayCircle, Save, Image as ImageIcon, ChevronRight } from 'lucide-react';
+import { Plus, Trash2, CheckCircle, Calculator, FileText, UploadCloud, Calendar, Download, Loader2, AlertCircle, Sparkles, Wand2, X, Settings2, Edit3, ListChecks, RefreshCcw, Copy, Zap, Droplet, Wifi, Smartphone, Landmark, Receipt, Clock, Coins, Eye, TrendingDown, Hourglass, Archive, RotateCw, PlayCircle, Save, Image as ImageIcon, ChevronRight, CreditCard } from 'lucide-react';
 import { useNotification } from '../contexts/NotificationContext';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface LoansPageProps {
   loans: Loan[];
   setLoans: React.Dispatch<React.SetStateAction<Loan[]>>;
-  settings: any;
+  settings: UserSettings;
+  setSettings: React.Dispatch<React.SetStateAction<UserSettings | null>>;
 }
 
 const SAUDI_LENDERS = [
@@ -52,7 +51,7 @@ interface ManualScheduleItem {
     amount: number;
 }
 
-const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings }) => {
+const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSettings }) => {
   const { notify } = useNotification();
   
   // Tab State
@@ -72,6 +71,25 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings }) => {
   // New Calculators State
   const [showSettlementCalc, setShowSettlementCalc] = useState(false);
   const [showRefinanceCalc, setShowRefinanceCalc] = useState(false);
+
+  // Payment Modal State
+  const [paymentModal, setPaymentModal] = useState<{
+      isOpen: boolean;
+      type: 'loan' | 'bill';
+      item: any; // Loan or Bill
+      scheduleItem?: any; // For Loans
+      amount: number;
+      title: string;
+      date: string;
+  }>({
+      isOpen: false,
+      type: 'loan',
+      item: null,
+      amount: 0,
+      title: '',
+      date: ''
+  });
+  const [selectedPaymentCardId, setSelectedPaymentCardId] = useState<string>('');
 
   const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -137,9 +155,6 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings }) => {
       isSubscription: false,
       renewalDate: '',
   });
-
-  // Refinance Calculator State
-  const [refinanceData, setRefinanceData] = useState({ newRate: '', newTerm: '', newPrincipal: '' });
 
   useEffect(() => {
       if (activeTab === 'bills' || activeTab === 'archive' || activeTab === 'subscriptions') {
@@ -512,21 +527,88 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings }) => {
       if (selectedBill) setSelectedBill(null);
   };
 
-  const markPaymentAsPaid = async (loanId: string, paymentDate: string) => {
-     const loanIndex = loans.findIndex(l => l.id === loanId);
-     if (loanIndex === -1) return;
-     const updatedLoans = [...loans];
-     const loan = {...updatedLoans[loanIndex]};
-     const itemIndex = loan.schedule.findIndex(s => s.paymentDate === paymentDate);
-     if(itemIndex === -1) return;
-     const item = loan.schedule[itemIndex];
-     const newStatus = !item.isPaid;
-     loan.schedule = loan.schedule.map((s, idx) => idx === itemIndex ? { ...s, isPaid: newStatus } : s);
-     loan.status = loan.schedule.every(s => s.isPaid) ? 'completed' : 'active';
-     updatedLoans[loanIndex] = loan;
-     setLoans(updatedLoans);
-     if (selectedLoan && selectedLoan.id === loanId) setSelectedLoan(loan);
-     await storageService.updateLoan(loan);
+  // --- Payment Modal Logic ---
+  
+  const initiatePayment = (type: 'loan' | 'bill', item: any, scheduleItem?: any, amount: number = 0, date: string = '') => {
+      setPaymentModal({
+          isOpen: true,
+          type,
+          item,
+          scheduleItem,
+          amount,
+          title: type === 'loan' ? `سداد قسط ${item.name}` : `سداد فاتورة ${item.name}`,
+          date
+      });
+      // Default to first card if exists
+      if (settings.cards.length > 0) {
+          setSelectedPaymentCardId(settings.cards[0].id);
+      } else {
+          setSelectedPaymentCardId('cash');
+      }
+  };
+
+  const confirmPayment = async () => {
+      setIsProcessing(true);
+      try {
+          // 1. Deduct Balance (if card selected)
+          if (selectedPaymentCardId !== 'cash') {
+              const cardIndex = settings.cards.findIndex(c => c.id === selectedPaymentCardId);
+              if (cardIndex > -1) {
+                  const updatedCards = [...settings.cards];
+                  const card = updatedCards[cardIndex];
+                  const newBalance = (card.balance || 0) - paymentModal.amount;
+                  
+                  updatedCards[cardIndex] = { ...card, balance: newBalance };
+                  
+                  // Save Settings
+                  const newSettings = { ...settings, cards: updatedCards };
+                  const savedSettings = await storageService.saveSettings(newSettings);
+                  setSettings(savedSettings);
+              }
+          }
+
+          // 2. Record Transaction
+          const tx: Transaction = {
+              id: '',
+              amount: paymentModal.amount,
+              type: TransactionType.EXPENSE,
+              category: paymentModal.type === 'loan' ? 'قروض' : 'فواتير وخدمات',
+              date: new Date().toISOString(),
+              note: `${paymentModal.title} (${paymentModal.date})`,
+              cardId: selectedPaymentCardId !== 'cash' ? selectedPaymentCardId : undefined
+          };
+          await storageService.saveTransaction(tx);
+
+          // 3. Update Item Status
+          if (paymentModal.type === 'loan' && paymentModal.scheduleItem) {
+               const loan = paymentModal.item as Loan;
+               const scheduleItem = paymentModal.scheduleItem;
+               
+               const itemIndex = loan.schedule.findIndex(s => s.paymentDate === scheduleItem.paymentDate);
+               if (itemIndex > -1) {
+                   loan.schedule[itemIndex].isPaid = true;
+                   loan.status = loan.schedule.every(s => s.isPaid) ? 'completed' : 'active';
+                   
+                   await storageService.updateLoan(loan);
+                   const updatedLoans = await storageService.getLoans();
+                   setLoans(updatedLoans);
+                   if (selectedLoan?.id === loan.id) setSelectedLoan(loan);
+               }
+          } else if (paymentModal.type === 'bill') {
+               // For bills, we just record the transaction and maybe notify success
+               // If we had a last_payment_date in schema we would update it here.
+               // For now, the transaction record is the "Proof" of payment.
+          }
+
+          notify('تم السداد وتسجيل العملية بنجاح', 'success');
+          setPaymentModal({ ...paymentModal, isOpen: false });
+
+      } catch (e) {
+          console.error(e);
+          notify('حدث خطأ أثناء عملية السداد', 'error');
+      } finally {
+          setIsProcessing(false);
+      }
   };
   
   const handleOpenScheduleEditor = () => { setShowScheduleEditor(true); };
@@ -947,7 +1029,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings }) => {
                                     <tr>
                                         <th className="px-4 py-3">التاريخ</th>
                                         <th className="px-4 py-3">المبلغ</th>
-                                        <th className="px-4 py-3">الحالة</th>
+                                        <th className="px-4 py-3">الحالة / إجراء</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -959,7 +1041,9 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings }) => {
                                                 {item.isPaid ? (
                                                     <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"><CheckCircle size={12}/> مدفوع</span>
                                                 ) : (
-                                                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"><Clock size={12}/> قادم</span>
+                                                    <button onClick={() => initiatePayment('bill', selectedBill, item, item.amount, item.date.toLocaleDateString('en-GB'))} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm hover:opacity-90">
+                                                        <CreditCard size={12}/> سداد
+                                                    </button>
                                                 )}
                                             </td>
                                         </tr>
@@ -1007,14 +1091,25 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings }) => {
                 
                 <div className="flex-1 overflow-y-auto">
                     <table className="w-full text-sm text-left rtl:text-right text-slate-500 dark:text-slate-400">
-                            <thead className="text-xs text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 sticky top-0 shadow-sm z-10"><tr><th className="px-6 py-3">التاريخ</th><th className="px-6 py-3">القسط</th><th className="px-6 py-3">المتبقي</th><th className="px-6 py-3">الحالة</th></tr></thead>
+                            <thead className="text-xs text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 sticky top-0 shadow-sm z-10"><tr><th className="px-6 py-3">التاريخ</th><th className="px-6 py-3">القسط</th><th className="px-6 py-3">المتبقي</th><th className="px-6 py-3">الحالة / إجراء</th></tr></thead>
                             <tbody>
                                 {selectedLoan.schedule.map((item, idx) => (
                                     <tr key={idx} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50">
                                         <td className="px-6 py-4 font-mono">{new Date(item.paymentDate).toLocaleDateString('en-GB')}</td>
                                         <td className="px-6 py-4 font-bold text-slate-700 dark:text-slate-200 font-mono">{item.paymentAmount.toFixed(2)}</td>
                                         <td className="px-6 py-4 font-mono">{item.remainingBalance.toFixed(2)}</td>
-                                        <td className="px-6 py-4"><button onClick={()=>markPaymentAsPaid(selectedLoan.id, item.paymentDate)} className={`px-3 py-1 rounded-full text-xs font-bold ${item.isPaid ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-slate-100 dark:bg-slate-800 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'}`}>{item.isPaid ? 'مدفوع' : 'سداد'}</button></td>
+                                        <td className="px-6 py-4">
+                                            {item.isPaid ? (
+                                                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"><CheckCircle size={12}/> مدفوع</span>
+                                            ) : (
+                                                <button 
+                                                    onClick={() => initiatePayment('loan', selectedLoan, item, item.paymentAmount, new Date(item.paymentDate).toLocaleDateString('en-GB'))} 
+                                                    className="inline-flex items-center gap-1 px-4 py-1.5 rounded-lg text-xs font-bold bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm hover:opacity-90"
+                                                >
+                                                    <CreditCard size={12}/> سداد
+                                                </button>
+                                            )}
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -1022,6 +1117,64 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings }) => {
                 </div>
             </div>
         </div>
+      )}
+
+      {/* Payment Confirmation Modal */}
+      {paymentModal.isOpen && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in">
+              <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-2xl p-6 shadow-2xl animate-scale-in border border-slate-100 dark:border-slate-800">
+                  <div className="flex justify-between items-center mb-6">
+                      <h3 className="font-bold text-lg text-slate-900 dark:text-white">تأكيد عملية السداد</h3>
+                      <button onClick={() => setPaymentModal({...paymentModal, isOpen: false})} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full"><X size={20}/></button>
+                  </div>
+
+                  <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700 mb-6 text-center">
+                      <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">{paymentModal.title}</p>
+                      <h2 className="text-3xl font-bold text-slate-900 dark:text-white font-mono">{paymentModal.amount.toLocaleString('en-US')} <span className="text-sm">SAR</span></h2>
+                  </div>
+
+                  <div className="mb-6">
+                      <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">خصم المبلغ من</label>
+                      <div className="space-y-2">
+                          {settings.cards.map(card => (
+                              <button
+                                  key={card.id}
+                                  onClick={() => setSelectedPaymentCardId(card.id)}
+                                  className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all ${selectedPaymentCardId === card.id ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 ring-1 ring-emerald-500' : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                              >
+                                  <div className="flex items-center gap-3">
+                                      <div className="w-10 h-6 rounded bg-slate-800" style={{backgroundColor: card.color}}></div>
+                                      <div className="text-right">
+                                          <p className="text-sm font-bold text-slate-800 dark:text-slate-200">{card.bankName}</p>
+                                          <p className="text-xs text-slate-500">**** {card.cardNumber}</p>
+                                      </div>
+                                  </div>
+                                  <span className="font-mono text-sm font-bold text-slate-600 dark:text-slate-400">{card.balance?.toLocaleString('en-US')}</span>
+                              </button>
+                          ))}
+                          <button
+                              onClick={() => setSelectedPaymentCardId('cash')}
+                              className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all ${selectedPaymentCardId === 'cash' ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 ring-1 ring-emerald-500' : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                          >
+                              <div className="flex items-center gap-3">
+                                  <div className="w-10 h-6 rounded bg-slate-400 flex items-center justify-center text-white"><Coins size={14}/></div>
+                                  <p className="text-sm font-bold text-slate-800 dark:text-slate-200">نقدي / خارجي</p>
+                              </div>
+                              <span className="text-xs text-slate-400">لن يتم الخصم</span>
+                          </button>
+                      </div>
+                  </div>
+
+                  <button 
+                      onClick={confirmPayment}
+                      disabled={isProcessing}
+                      className="w-full bg-slate-900 dark:bg-[#bef264] text-white dark:text-slate-900 py-3 rounded-xl font-bold text-lg hover:shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-70"
+                  >
+                      {isProcessing ? <Loader2 className="animate-spin" /> : <CheckCircle size={20} />}
+                      <span>تأكيد السداد</span>
+                  </button>
+              </div>
+          </div>
       )}
 
       {/* Settlement Calculator Modal */}

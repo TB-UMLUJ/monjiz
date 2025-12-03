@@ -91,8 +91,8 @@ const Dashboard: React.FC<DashboardProps> = ({
   healthScore -= Math.min(incomeDebtRatio * 10, 40); // Deduct for high debt
   healthScore = Math.min(Math.max(Math.round(healthScore), 0), 100);
 
-  // Safe-to-Spend
-  const safeToSpend = Math.max(0, balance - (totalExpense * 0.5) - savings);
+  // Safe-to-Spend (Updated to sum of all card balances)
+  const safeToSpend = settings.cards.reduce((acc, card) => acc + (card.balance || 0), 0);
 
   // Top Expenses
   const topExpenses = useMemo(() => {
@@ -173,8 +173,9 @@ const Dashboard: React.FC<DashboardProps> = ({
   };
 
   const getLogoClasses = (pos?: string) => {
-      const base = "absolute object-contain z-0 pointer-events-none transition-all duration-300 opacity-20 dark:opacity-10";
-      return `${base} w-56 h-56 md:w-72 md:h-72 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2`;
+      // Removed opacity-20 and made it fully clear. Centered but size adjusted.
+      const base = "absolute object-contain z-0 pointer-events-none transition-all duration-300 opacity-100";
+      return `${base} w-48 h-48 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2`;
   };
 
     const openModal = (type: 'transfer' | 'receive' | 'smart_sms') => {
@@ -369,7 +370,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 flex items-center justify-between">
                   <div>
                       <h4 className="text-sm font-bold text-slate-500 mb-1">قابل للصرف (الآن)</h4>
-                      <p className="text-xs text-slate-400 mb-2">بعد خصم الالتزامات والتوفير</p>
+                      <p className="text-xs text-slate-400 mb-2">إجمالي أرصدة البطاقات</p>
                       <h3 className="text-2xl font-bold text-slate-900 dark:text-white sensitive-data font-mono">{safeToSpend.toLocaleString('en-US')} {settings.currency}</h3>
                   </div>
                   <div className="p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-full text-indigo-500">
@@ -485,14 +486,14 @@ const Dashboard: React.FC<DashboardProps> = ({
                </div>
            </div>
 
-           {/* Cards Widget (Redesigned to match image) */}
+           {/* Cards Widget (Redesigned) */}
            <div 
               className="relative w-full aspect-[1.586] rounded-2xl overflow-hidden shadow-2xl transition-transform duration-300 hover:scale-[1.02] select-none touch-pan-y text-white font-tajawal" 
               onTouchStart={onTouchStart}
               onTouchMove={onTouchMove}
               onTouchEnd={onTouchEnd}
            >
-               {/* 1. Gradient Background (Matches Image: Purple/Indigo -> Blue -> Teal) */}
+               {/* 1. Gradient Background */}
                <div className="absolute inset-0 bg-gradient-to-br from-indigo-700 via-blue-600 to-teal-400"></div>
 
                {/* 2. Abstract Curves / Wave Overlay */}
@@ -504,38 +505,36 @@ const Dashboard: React.FC<DashboardProps> = ({
                   </svg>
                </div>
 
-               {/* Logo Watermark */}
+               {/* Logo Watermark (Fully Opaque Now) */}
                {activeCard.logoUrl && (
                   <img src={activeCard.logoUrl} alt="Bank Logo" className={getLogoClasses(activeCard.logoPosition)} />
                )}
 
-               {/* Card Content - NEW ROBUST STRUCTURE */}
-                <div className="relative z-10 p-4 md:p-6 flex flex-col h-full text-white">
-                    {/* Top Right aligned content */}
-                    <div className="flex justify-end w-full">
+               {/* Card Content - Updated Layout for Full Visibility */}
+                <div className="relative z-10 p-6 flex flex-col h-full justify-between text-white">
+                    {/* Top Row */}
+                    <div className="flex justify-between items-start w-full">
+                        {/* Right Side (RTL) - Bank Name + Balance */}
                         <div className="text-right">
-                            <h4 className="font-bold text-sm md:text-base tracking-wide opacity-90">
-                                {activeCard.bankName || 'Debit Card'}
-                            </h4>
-                            <p className="text-[10px] opacity-70 mt-4 mb-0.5 tracking-wider">الرصيد الحالي</p>
-                            <h3 className="text-2xl md:text-3xl font-bold sensitive-data tracking-tight drop-shadow-md font-mono">
+                             <h4 className="font-bold text-lg drop-shadow-sm">{activeCard.bankName || 'Debit Card'}</h4>
+                             <p className="text-[10px] opacity-80 mt-1">الرصيد</p>
+                             <h3 className="text-2xl font-bold sensitive-data font-mono tracking-tight drop-shadow-md">
                                {settings.currency} {(activeCard.balance ?? 0).toLocaleString('en-US')}
-                            </h3>
+                             </h3>
+                        </div>
+
+                        {/* Left Side (RTL) - Card Holder */}
+                        <div className="text-left">
+                             <p className="text-[10px] opacity-70 uppercase tracking-widest mb-0.5">HOLDER</p>
+                             <p className="font-bold text-lg sensitive-data drop-shadow-sm truncate max-w-[150px]">عمر محمد</p>
                         </div>
                     </div>
 
-                    {/* Spacer */}
-                    <div className="flex-grow"></div>
-
-                    {/* Bottom Left aligned content */}
-                    <div className="flex justify-start w-full">
-                        <div className="text-left">
-                             <p className="font-bold text-lg md:text-2xl tracking-[0.2em] sensitive-data drop-shadow-sm opacity-90 mb-4 font-mono" dir="ltr">
-                               {activeCard.cardNumber ? `••••  ••••  ••••  ${activeCard.cardNumber}` : '••••  ••••  ••••  0000'}
-                            </p>
-                            <p className="text-[10px] md:text-xs opacity-70 mb-0 uppercase tracking-widest">CARD HOLDER</p>
-                            <p className="font-bold text-base md:text-lg tracking-wide sensitive-data drop-shadow-sm truncate max-w-[200px]">عمر محمد</p>
-                        </div>
+                    {/* Bottom Row - Card Number Centered */}
+                    <div className="flex justify-center items-end mt-auto mb-2">
+                        <p className="font-bold text-2xl tracking-widest sensitive-data drop-shadow-md font-mono" dir="ltr" style={{fontFamily: 'monospace'}}>
+                           {activeCard.cardNumber ? `•••• ${activeCard.cardNumber}` : '•••• 0000'}
+                        </p>
                     </div>
                 </div>
 
