@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { authService } from '../services/auth';
 import { Lock, ArrowLeft, ShieldCheck, Loader2 } from 'lucide-react';
@@ -22,10 +21,27 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         if (isValid) {
           onLoginSuccess();
         } else {
-          setError('كلمة المرور غير صحيحة');
+          // This is now only for incorrect password
+          setError('كلمة المرور غير صحيحة. يرجى المحاولة مرة أخرى.');
         }
     } catch (e) {
-        setError('حدث خطأ أثناء الاتصال');
+        if (e instanceof Error) {
+            switch(e.message) {
+                case 'DATABASE_NOT_CONFIGURED':
+                    setError('خطأ: إعدادات قاعدة البيانات غير مكتملة. يرجى مراجعة متغيرات البيئة (VITE_SUPABASE_URL/KEY) في Vercel.');
+                    break;
+                case 'DATABASE_CONNECTION_FAILED':
+                    setError('فشل الاتصال بقاعدة البيانات. تأكد من صحة المفاتيح وصلاحيات الوصول للشبكة.');
+                    break;
+                case 'USER_NOT_FOUND':
+                     setError('خطأ في الإعداد: لم يتم العثور على المستخدم الافتراضي. يرجى التأكد من تشغيل سكربت قاعدة البيانات.');
+                     break;
+                default:
+                    setError('حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى لاحقاً.');
+            }
+        } else {
+            setError('حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى لاحقاً.');
+        }
     } finally {
         setIsLoading(false);
     }

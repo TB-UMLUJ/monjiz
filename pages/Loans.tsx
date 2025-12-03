@@ -895,8 +895,8 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings }) => {
 
       {/* Add Bill/Subscription Modal */}
       {showAddBillModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-              <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md p-6 animate-fade-in max-h-[90vh] overflow-y-auto border border-slate-200 dark:border-slate-800">
+          <div className="fixed inset-0 z-50 flex items-start md:items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto">
+              <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md p-4 md:p-6 animate-fade-in my-4 md:my-8 border border-slate-200 dark:border-slate-800">
                   <h3 className="text-xl font-bold mb-4 text-slate-900 dark:text-white">{editingBillId ? 'تعديل الفاتورة/الالتزام' : 'إضافة التزام / اشتراك'}</h3>
                    {/* PDF Upload Section */}
                    <div className="mb-6 p-4 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800/50 text-center relative group hover:border-emerald-400 transition-colors">
@@ -1072,8 +1072,8 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings }) => {
       
       {/* Add Loan Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl p-6 animate-scale-in my-8">
+        <div className="fixed inset-0 z-50 flex items-start md:items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl p-4 md:p-6 animate-scale-in my-4 md:my-8">
             <div className="flex justify-between items-center mb-6 border-b border-slate-100 dark:border-slate-800 pb-4">
                <h3 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
                  {isEditing ? <Edit3 size={24}/> : <Plus size={24}/>}
