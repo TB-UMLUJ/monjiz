@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Transaction, UserSettings, FinancialGoal } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as ReTooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { TrendingUp, AlertTriangle, Calendar, Trophy, Target, Calculator, Plus, Trash2, CheckCircle2, Crown, Zap, Save, RefreshCcw, PieChart as PieChartIcon } from 'lucide-react';
+import { TrendingUp, AlertTriangle, Calendar, Trophy, Target, Calculator, Plus, Trash2, CheckCircle2, Crown, Zap, Save, RefreshCcw, PieChart as PieChartIcon, DollarSign } from 'lucide-react';
 import { storageService } from '../services/storage';
 import { useNotification } from '../contexts/NotificationContext';
 
@@ -47,6 +47,9 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
   const dailyAverage = dayOfMonth > 0 ? totalSpent / dayOfMonth : 0;
   const forecastedSpend = dailyAverage * daysInMonth;
   const isOverBudgetRisk = forecastedSpend > settings.monthlyLimit;
+
+  // Total Cards Balance
+  const totalCardsBalance = settings.cards.reduce((acc, card) => acc + (card.balance || 0), 0);
 
   // 50/30/20 Rule
   const needsCategories = ['سكن', 'فواتير وخدمات', 'طعام', 'نقل', 'صحة', 'تعليم'];
@@ -136,6 +139,12 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
       notify(`تم إضافة ${increment} للهدف`, 'success');
   };
 
+  const incomeTransactions = useMemo(() => {
+    return transactions
+        .filter(t => t.type === 'income')
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [transactions]);
+
   return (
     <div className="space-y-8 pb-20 md:pb-10">
        
@@ -150,15 +159,15 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
                     {isOverBudgetRisk ? 'تنبيه: خطر تجاوز الميزانية' : 'وضعك المالي ممتاز!'}
                 </h3>
                 <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                    بناءً على صرفك الحالي ({dailyAverage.toFixed(0)} يومياً)، متوقع أن تصل إلى <span className="font-bold font-mono">{forecastedSpend.toLocaleString('en-US')}</span> بنهاية الشهر.
+                    بناءً على صرفك الحالي ({dailyAverage.toFixed(0)} يومياً)، متوقع أن تصل إلى <span className="font-bold">{forecastedSpend.toLocaleString('en-US')}</span> بنهاية الشهر.
                     {isOverBudgetRisk ? ` (تتجاوز الحد بـ ${(forecastedSpend - settings.monthlyLimit).toLocaleString('en-US')})` : ` (أقل من الحد بـ ${(settings.monthlyLimit - forecastedSpend).toLocaleString('en-US')})`}
                 </p>
              </div>
           </div>
           <div className="text-center md:text-left min-w-[120px]">
              <p className="text-xs text-slate-500 mb-1">الميزانية المتبقية</p>
-             <p className="text-2xl font-bold text-slate-800 dark:text-white font-mono">
-                {(settings.monthlyLimit - totalSpent).toLocaleString('en-US')}
+             <p className="text-2xl font-bold text-slate-800 dark:text-white">
+                {totalCardsBalance.toLocaleString('en-US')}
              </p>
           </div>
        </div>
@@ -199,7 +208,7 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
                                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }}></div>
                                <span className="text-slate-600 dark:text-slate-300">{item.name}</span>
                            </div>
-                           <span className="font-bold text-slate-800 dark:text-white font-mono">{item.value.toLocaleString('en-US')}</span>
+                           <span className="font-bold text-slate-800 dark:text-white">{item.value.toLocaleString('en-US')}</span>
                        </div>
                    ))}
                </div>
@@ -223,7 +232,7 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
                    </ResponsiveContainer>
                </div>
                <p className="text-sm text-slate-500 dark:text-slate-400 mt-4 text-center">
-                   مصروفاتك هذا الشهر {totalSpent > comparisonData[0].amount ? 'أعلى' : 'أقل'} من الشهر الماضي بـ <span className="font-mono">{Math.abs(totalSpent - comparisonData[0].amount).toLocaleString('en-US')}</span>.
+                   مصروفاتك هذا الشهر {totalSpent > comparisonData[0].amount ? 'أعلى' : 'أقل'} من الشهر الماضي بـ <span>{Math.abs(totalSpent - comparisonData[0].amount).toLocaleString('en-US')}</span>.
                </p>
            </div>
        </div>
@@ -232,7 +241,7 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
        <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
            <div className="flex items-center gap-2 mb-6">
                <Calendar size={20} className="text-emerald-500" />
-               <h3 className="font-bold text-lg text-slate-800 dark:text-white font-mono">تقويم الصرف (شهر {today.getMonth() + 1})</h3>
+               <h3 className="font-bold text-lg text-slate-800 dark:text-white">تقويم الصرف (شهر {today.getMonth() + 1})</h3>
            </div>
            
            <div className="grid grid-cols-7 gap-2">
@@ -244,7 +253,7 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
                    return (
                        <div 
                            key={day} 
-                           className={`aspect-square rounded-lg flex items-center justify-center text-sm ${getDayIntensity(day)} transition-all hover:scale-105 cursor-default font-mono`}
+                           className={`aspect-square rounded-lg flex items-center justify-center text-sm ${getDayIntensity(day)} transition-all hover:scale-105 cursor-default`}
                            title={`يوم ${day}`}
                        >
                            {day}
@@ -253,7 +262,7 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
                })}
            </div>
            <div className="flex gap-4 mt-4 justify-center text-xs text-slate-500">
-               <div className="flex items-center gap-1 font-mono"><div className="w-3 h-3 bg-slate-100 rounded"></div> 0</div>
+               <div className="flex items-center gap-1"><div className="w-3 h-3 bg-slate-100 rounded"></div> 0</div>
                <div className="flex items-center gap-1"><div className="w-3 h-3 bg-emerald-100 rounded"></div> منخفض</div>
                <div className="flex items-center gap-1"><div className="w-3 h-3 bg-yellow-100 rounded"></div> متوسط</div>
                <div className="flex items-center gap-1"><div className="w-3 h-3 bg-rose-100 rounded"></div> مرتفع</div>
@@ -289,7 +298,7 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
                                    <div className="flex justify-between items-center mb-2">
                                        <h4 className="font-bold text-slate-800 dark:text-white">{goal.name}</h4>
                                        <div className="flex items-center gap-2">
-                                           <span className="text-xs text-slate-500 font-mono">{percentage.toFixed(0)}%</span>
+                                           <span className="text-xs text-slate-500">{percentage.toFixed(0)}%</span>
                                            <button onClick={() => handleDeleteGoal(goal.id)} className="text-slate-400 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={14}/></button>
                                        </div>
                                    </div>
@@ -297,8 +306,8 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
                                        <div className="bg-emerald-500 h-full transition-all" style={{ width: `${percentage}%` }}></div>
                                    </div>
                                    <div className="flex justify-between items-center text-xs">
-                                       <span className="text-slate-500 font-mono">{goal.currentAmount.toLocaleString('en-US')} / {goal.targetAmount.toLocaleString('en-US')}</span>
-                                       <button onClick={() => handleUpdateGoal(goal, 100)} className="text-emerald-600 font-bold hover:underline font-mono">+ 100 ريال</button>
+                                       <span className="text-slate-500">{goal.currentAmount.toLocaleString('en-US')} / {goal.targetAmount.toLocaleString('en-US')}</span>
+                                       <button onClick={() => handleUpdateGoal(goal, 100)} className="text-emerald-600 font-bold hover:underline">+ 100 ريال</button>
                                    </div>
                                </div>
                            );
@@ -324,7 +333,7 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
                                <div className="flex-1">
                                    <div className="flex justify-between mb-1">
                                        <span className="font-bold text-sm text-slate-800 dark:text-white">{challenge.name}</span>
-                                       <span className="text-xs text-slate-500 font-mono">{challenge.current}/{challenge.target}</span>
+                                       <span className="text-xs text-slate-500">{challenge.current}/{challenge.target}</span>
                                    </div>
                                    <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
                                        <div className="bg-amber-400 h-full" style={{ width: `${progress}%` }}></div>
@@ -357,7 +366,7 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
                                type="number" 
                                value={simSaving} 
                                onChange={(e) => setSimSaving(Number(e.target.value))}
-                               className="w-full bg-white/10 border border-white/20 rounded-xl p-3 text-white outline-none focus:border-[#bef264] font-mono"
+                               className="w-full bg-white/10 border border-white/20 rounded-xl p-3 text-white outline-none focus:border-[#bef264]"
                            />
                        </div>
                        <div>
@@ -368,14 +377,14 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
                                onChange={(e) => setSimMonths(Number(e.target.value))}
                                className="w-full accent-[#bef264]"
                            />
-                           <div className="text-right text-sm text-[#bef264] font-mono">{simMonths} شهر ({Math.floor(simMonths/12)} سنة)</div>
+                           <div className="text-right text-sm text-[#bef264]">{simMonths} شهر ({Math.floor(simMonths/12)} سنة)</div>
                        </div>
                    </div>
                </div>
 
                <div className="flex-1 text-center bg-white/5 p-6 rounded-2xl border border-white/10 w-full">
                    <p className="text-sm text-indigo-300 mb-2">ستجمع مبلغ</p>
-                   <h2 className="text-4xl md:text-5xl font-bold text-white mb-2 font-mono">
+                   <h2 className="text-4xl md:text-5xl font-bold text-white mb-2">
                        {(simSaving * simMonths).toLocaleString('en-US')} <span className="text-lg text-[#bef264] font-tajawal">ريال</span>
                    </h2>
                    <p className="text-xs text-indigo-400 mt-4">
@@ -386,6 +395,94 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
            
            {/* Decor */}
            <div className="absolute -top-20 -right-20 w-64 h-64 bg-[#bef264] rounded-full blur-[80px] opacity-20"></div>
+       </div>
+
+       {/* 7. Income History Table (Responsive Card View for Mobile) */}
+       <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
+           <div className="flex items-center gap-2 mb-6">
+               <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg text-emerald-600 dark:text-emerald-400">
+                 <DollarSign size={20} />
+               </div>
+               <h3 className="font-bold text-lg text-slate-800 dark:text-white">سجل الدخل والرواتب</h3>
+           </div>
+           
+           {/* Desktop Table View */}
+           <div className="hidden md:block overflow-x-auto">
+               <table className="w-full text-sm text-left rtl:text-right text-slate-500 dark:text-slate-400">
+                   <thead className="text-xs text-slate-700 dark:text-slate-300 uppercase bg-slate-50 dark:bg-slate-800">
+                       <tr>
+                           <th className="px-6 py-4 rounded-r-xl">التاريخ</th>
+                           <th className="px-6 py-4">المصدر / التصنيف</th>
+                           <th className="px-6 py-4">ملاحظات</th>
+                           <th className="px-6 py-4 rounded-l-xl text-left">المبلغ</th>
+                       </tr>
+                   </thead>
+                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                       {incomeTransactions.length > 0 ? (
+                           incomeTransactions.map((t) => (
+                               <tr key={t.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                                   <td className="px-6 py-4 font-medium whitespace-nowrap">
+                                       {/* Force English Digits and Gregorian Date */}
+                                       {new Date(t.date).toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: 'numeric' })}
+                                   </td>
+                                   <td className="px-6 py-4">
+                                       <span className="bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 px-2 py-1 rounded-md text-xs font-bold border border-emerald-100 dark:border-emerald-800">
+                                           {t.category}
+                                       </span>
+                                   </td>
+                                   <td className="px-6 py-4 max-w-[200px] truncate" title={t.note}>
+                                       {t.note || '-'}
+                                   </td>
+                                   <td className="px-6 py-4 font-bold text-emerald-600 dark:text-emerald-400 text-left ltr">
+                                       +{t.amount.toLocaleString('en-US')} SAR
+                                   </td>
+                               </tr>
+                           ))
+                       ) : (
+                           <tr>
+                               <td colSpan={4} className="px-6 py-8 text-center text-slate-400">
+                                   لا يوجد سجل دخل مسجل حتى الآن
+                               </td>
+                           </tr>
+                       )}
+                   </tbody>
+               </table>
+           </div>
+
+           {/* Mobile Card View */}
+           <div className="md:hidden grid grid-cols-1 gap-4">
+               {incomeTransactions.length > 0 ? (
+                   incomeTransactions.map((t) => (
+                       <div key={t.id} className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-100 dark:border-slate-700">
+                           <div className="flex justify-between items-start mb-2">
+                               <div>
+                                   <p className="text-xs text-slate-400 mb-1">
+                                      {new Date(t.date).toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: 'numeric' })}
+                                   </p>
+                                   <span className="bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded text-xs font-bold">
+                                      {t.category}
+                                   </span>
+                               </div>
+                               <div className="text-left">
+                                   <p className="font-bold text-xl text-emerald-600 dark:text-emerald-400">
+                                       +{t.amount.toLocaleString('en-US')}
+                                   </p>
+                                   <p className="text-[10px] text-slate-400">SAR</p>
+                               </div>
+                           </div>
+                           {t.note && (
+                               <div className="pt-2 border-t border-slate-200 dark:border-slate-700 mt-2">
+                                   <p className="text-sm text-slate-600 dark:text-slate-300">{t.note}</p>
+                               </div>
+                           )}
+                       </div>
+                   ))
+               ) : (
+                   <div className="text-center py-8 text-slate-400">
+                       لا يوجد سجل دخل مسجل حتى الآن
+                   </div>
+               )}
+           </div>
        </div>
 
        {/* Add Goal Modal */}

@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useRef } from 'react';
 import { UserSettings, IncomeSource, BankCard, ThemeOption, RecurringTransaction, CustomCategory, TransactionType, LogoPosition, EntityLogo, Allowance } from '../types';
 import { storageService } from '../services/storage';
@@ -284,7 +282,7 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings }) => {
         <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
              <div className="flex justify-between items-center mb-6 border-b border-slate-100 dark:border-slate-800 pb-4">
                  <div className="flex items-center gap-3"><DollarSign className="text-emerald-500" /><h3 className="font-bold text-slate-900 dark:text-white">تفاصيل الراتب والدخل</h3></div>
-                 <div className="bg-emerald-50 dark:bg-emerald-900/30 px-3 py-1 rounded-full text-emerald-700 dark:text-emerald-300 text-xs font-bold font-mono">يتم الإيداع تلقائياً يوم {currentIncome.dayOfMonth}</div>
+                 <div className="bg-emerald-50 dark:bg-emerald-900/30 px-3 py-1 rounded-full text-emerald-700 dark:text-emerald-300 text-xs font-bold">يتم الإيداع تلقائياً يوم {currentIncome.dayOfMonth}</div>
              </div>
              
              {/* Mobile View: flex-col-reverse ensures the "Result" (2nd div) appears at top on mobile */}
@@ -299,7 +297,7 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings }) => {
                                 type="number" 
                                 value={currentIncome.basicSalary || ''} 
                                 onChange={e => updateIncome('basicSalary', Number(e.target.value))} 
-                                className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-white font-bold outline-none focus:ring-2 focus:ring-emerald-500 pl-12 font-mono"
+                                className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-white font-bold outline-none focus:ring-2 focus:ring-emerald-500 pl-12"
                                 placeholder="0.00"
                             />
                             <span className="absolute left-4 top-3.5 text-slate-400 text-xs">SAR</span>
@@ -316,7 +314,7 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings }) => {
                                 type="number" 
                                 value={currentIncome.gosiDeduction || ''} 
                                 onChange={e => updateIncome('gosiDeduction', Number(e.target.value))} 
-                                className="w-full p-3 rounded-xl bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-rose-500 font-bold outline-none focus:ring-2 focus:ring-rose-500 pl-12 font-mono"
+                                className="w-full p-3 rounded-xl bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-rose-500 font-bold outline-none focus:ring-2 focus:ring-rose-500 pl-12"
                                 placeholder="0.00"
                             />
                              <span className="absolute left-4 top-3.5 text-slate-400 text-xs">SAR</span>
@@ -346,7 +344,7 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings }) => {
                                         placeholder="المبلغ" 
                                         value={allowance.amount}
                                         onChange={e => updateAllowance(allowance.id, 'amount', Number(e.target.value))}
-                                        className="flex-1 min-w-0 p-2 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-sm outline-none font-bold text-emerald-600 dark:text-emerald-400 font-mono"
+                                        className="flex-1 min-w-0 p-2 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-sm outline-none font-bold text-emerald-600 dark:text-emerald-400"
                                     />
                                     <button type="button" onClick={() => removeAllowance(allowance.id)} className="text-rose-400 hover:text-rose-500 p-1 shrink-0"><X size={16}/></button>
                                 </div>
@@ -360,8 +358,8 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings }) => {
                      <div className="flex-1 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl p-6 text-white flex flex-col justify-center items-center shadow-lg relative overflow-hidden min-h-[160px]">
                          <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full blur-3xl -mr-10 -mt-10"></div>
                          <p className="text-emerald-100 text-sm mb-2 font-medium">صافي الراتب (الذي سيتم إيداعه)</p>
-                         <h2 className="text-4xl font-bold tracking-tight mb-1 font-mono">{currentIncome.amount.toLocaleString('en-US')} <span className="text-lg font-tajawal">SAR</span></h2>
-                         <p className="text-xs text-emerald-100 opacity-80 mt-2 text-center font-mono">
+                         <h2 className="text-4xl font-bold tracking-tight mb-1">{currentIncome.amount.toLocaleString('en-US')} <span className="text-lg font-tajawal">SAR</span></h2>
+                         <p className="text-xs text-emerald-100 opacity-80 mt-2 text-center">
                              أساسي ({currentIncome.basicSalary?.toLocaleString('en-US')}) + بدلات ({(currentIncome.allowances || []).reduce((a,c)=>a+Number(c.amount),0).toLocaleString('en-US')}) - تأمينات ({currentIncome.gosiDeduction?.toLocaleString('en-US')})
                          </p>
                      </div>
@@ -375,7 +373,7 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings }) => {
                                 min="1" max="31"
                                 value={currentIncome.dayOfMonth}
                                 onChange={e => updateIncome('dayOfMonth', Number(e.target.value))}
-                                className="w-16 p-2 text-center font-bold rounded-lg bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 outline-none text-slate-900 dark:text-white font-mono"
+                                className="w-16 p-2 text-center font-bold rounded-lg bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 outline-none text-slate-900 dark:text-white"
                              />
                          </div>
                      </div>
@@ -404,7 +402,7 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings }) => {
                </div>
                <div>
                   <label className="text-sm block mb-1 text-slate-600 dark:text-slate-300">الحد الشهري للميزانية</label>
-                  <input type="number" name="monthlyLimit" value={formData.monthlyLimit} onChange={handleChange} className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-[#bef264] font-mono" />
+                  <input type="number" name="monthlyLimit" value={formData.monthlyLimit} onChange={handleChange} className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-[#bef264]" />
                </div>
            </div>
         </div>
@@ -485,7 +483,7 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings }) => {
                                     type="text" maxLength={4} 
                                     value={card.cardNumber} 
                                     onChange={e => updateCard(card.id, 'cardNumber', e.target.value)}
-                                    className="w-full p-2 rounded-lg bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-white text-sm outline-none font-mono"
+                                    className="w-full p-2 rounded-lg bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-white text-sm outline-none"
                                 />
                              </div>
                              <div>
@@ -495,7 +493,7 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings }) => {
                                     step="0.01" 
                                     value={card.balance} 
                                     onChange={e => updateCard(card.id, 'balance', Number(e.target.value))}
-                                    className="w-full p-2 rounded-lg bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-white text-sm outline-none font-mono"
+                                    className="w-full p-2 rounded-lg bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-white text-sm outline-none"
                                 />
                              </div>
                         </div>
@@ -518,62 +516,63 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings }) => {
 
         {/* Security Section */}
         <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
-           <div className="flex items-center gap-3 mb-6 border-b border-slate-100 dark:border-slate-800 pb-4"><Lock className="text-rose-500" /><h3 className="font-bold text-slate-900 dark:text-white">الأمان</h3></div>
-           <div>
+            <div className="flex items-center gap-3 mb-6 border-b border-slate-100 dark:border-slate-800 pb-4"><Lock className="text-rose-500" /><h3 className="font-bold text-slate-900 dark:text-white">الأمان</h3></div>
+            <div>
               <label className="text-sm block mb-1 text-slate-600 dark:text-slate-300">كلمة المرور الجديدة</label>
-              <input type="password" name="password" onChange={handleChange} className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-[#bef264]" placeholder="اتركها فارغة إذا لا تريد التغيير" />
-           </div>
+              <input 
+                type="password" 
+                name="password" 
+                value={formData.password || ''} 
+                onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
+                className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-[#bef264]"
+                placeholder="اتركه فارغاً لعدم التغيير"
+              />
+            </div>
         </div>
 
-        <button 
-          type="submit" 
-          disabled={isProcessing}
-          className="w-full bg-slate-900 dark:bg-[#bef264] text-white dark:text-slate-900 py-4 rounded-xl font-bold text-lg hover:shadow-lg hover:-translate-y-1 transition-all flex items-center justify-center gap-3 disabled:opacity-70"
-        >
-           {isProcessing ? <Loader2 className="animate-spin" /> : <Save size={20} />}
-           <span>{saved ? 'تم الحفظ!' : 'حفظ التغييرات'}</span>
-        </button>
+        {/* Save Button */}
+        <div className="flex justify-end pt-4">
+          <button 
+            type="submit" 
+            disabled={isProcessing}
+            className="flex items-center gap-2 bg-slate-900 dark:bg-[#bef264] text-white dark:text-slate-900 px-6 py-3 rounded-xl font-bold shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all disabled:opacity-70"
+          >
+            {isProcessing ? <Loader2 className="animate-spin" /> : <Save />}
+            {saved ? 'تم الحفظ!' : 'حفظ التغييرات'}
+          </button>
+        </div>
       </form>
 
       {/* Image Editor Modal */}
       {rawImage && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-            <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-lg p-6 flex flex-col items-center">
-                <div className="flex justify-between items-center w-full mb-4">
-                    <h3 className="font-bold text-lg text-slate-900 dark:text-white flex items-center gap-2"><Crop size={20}/> تعديل الشعار</h3>
-                    <button onClick={() => setRawImage(null)} className="text-slate-500 hover:text-slate-700"><X size={20}/></button>
-                </div>
-                
-                <div className="relative w-[300px] h-[300px] bg-slate-100 border border-dashed border-slate-300 rounded-lg overflow-hidden cursor-move touch-none mb-6 shadow-inner"
-                     onMouseDown={handleMouseDown}
-                     onMouseMove={handleMouseMove}
-                     onMouseUp={handleMouseUp}
-                     onMouseLeave={handleMouseUp}
-                     onTouchStart={handleMouseDown}
-                     onTouchMove={handleMouseMove}
-                     onTouchEnd={handleMouseUp}
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in">
+            <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-2xl p-6 shadow-2xl animate-scale-in">
+                <h3 className="font-bold text-lg mb-4 text-slate-900 dark:text-white">تعديل الشعار</h3>
+                <div 
+                    className="relative w-full aspect-square bg-slate-200 dark:bg-slate-800 rounded-xl overflow-hidden cursor-move"
+                    onMouseDown={handleMouseDown}
+                    onMouseMove={handleMouseMove}
+                    onMouseUp={handleMouseUp}
+                    onMouseLeave={handleMouseUp}
+                    onTouchStart={handleMouseDown}
+                    onTouchMove={handleMouseMove}
+                    onTouchEnd={handleMouseUp}
                 >
-                    <canvas ref={canvasRef} width={300} height={300} className="w-full h-full block" />
-                    <div className="absolute inset-0 pointer-events-none border-2 border-indigo-500/50 rounded-full m-8"></div>
-                    <div className="absolute bottom-2 left-0 right-0 text-center text-[10px] text-slate-400 pointer-events-none">اسحب لتحريك الصورة</div>
+                    <canvas ref={canvasRef} width={300} height={300} className="w-full h-full"></canvas>
                 </div>
-
-                <div className="w-full space-y-4">
-                     <div className="flex items-center gap-4">
-                        <ZoomIn size={18} className="text-slate-500"/>
-                        <input 
-                           type="range" min="0.1" max="3" step="0.1" 
-                           value={editorState.zoom} 
-                           onChange={e => setEditorState({...editorState, zoom: Number(e.target.value)})} 
-                           className="flex-1 accent-indigo-600 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer"
-                        />
-                     </div>
-                     <div className="flex justify-center gap-4">
-                         <button onClick={() => setEditorState({...editorState, rotate: (editorState.rotate + 90) % 360})} className="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-800 rounded-lg text-sm font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-200"><RotateCw size={16}/> تدوير</button>
-                     </div>
-                     <button onClick={saveEditedLogo} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg hover:bg-indigo-700 transition-colors">
-                        <Check size={18}/> قص وحفظ الشعار
-                     </button>
+                <div className="grid grid-cols-2 gap-4 mt-4 text-sm">
+                    <div>
+                        <label className="block text-xs mb-1 text-slate-500">تكبير/تصغير</label>
+                        <input type="range" min="0.5" max="3" step="0.1" value={editorState.zoom} onChange={e => setEditorState(p => ({ ...p, zoom: Number(e.target.value) }))} className="w-full accent-[#bef264]" />
+                    </div>
+                    <div>
+                        <label className="block text-xs mb-1 text-slate-500">تدوير</label>
+                        <input type="range" min="0" max="360" step="90" value={editorState.rotate} onChange={e => setEditorState(p => ({ ...p, rotate: Number(e.target.value) }))} className="w-full accent-[#bef264]" />
+                    </div>
+                </div>
+                <div className="flex gap-2 mt-6">
+                    <button type="button" onClick={() => setRawImage(null)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg font-bold">إلغاء</button>
+                    <button type="button" onClick={saveEditedLogo} className="flex-1 py-3 bg-emerald-600 text-white rounded-lg font-bold flex items-center justify-center gap-2"><Check size={16}/> اعتماد</button>
                 </div>
             </div>
         </div>

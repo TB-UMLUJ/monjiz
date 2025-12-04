@@ -1,10 +1,9 @@
 
-
 import React, { useState } from 'react';
 import { Transaction, TransactionType, UserSettings } from '../types';
 import { storageService } from '../services/storage';
 import { parseTransactionFromSMS } from '../services/geminiService';
-import { Trash2, Search, ArrowDownLeft, ArrowUpRight, Edit3, Save, X, Loader2, MessageSquarePlus, Wand2, Sparkles, CreditCard } from 'lucide-react';
+import { Trash2, Search, ArrowDownLeft, ArrowUpRight, Edit3, Save, X, Loader2, MessageSquarePlus, Wand2, Sparkles, CreditCard, AlertTriangle, Plus } from 'lucide-react';
 import { useNotification } from '../contexts/NotificationContext';
 
 interface TransactionsProps {
@@ -19,6 +18,11 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
   const [filter, setFilter] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   
+  // Modal & Details State
+  const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false); // New state for Add/Edit Modal
+
   // AI Smart Import State
   const [showSmartModal, setShowSmartModal] = useState(false);
   const [smartSmsText, setSmartSmsText] = useState('');
@@ -54,6 +58,11 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
     setEditingId(null);
   };
 
+  const handleOpenAddModal = () => {
+      resetForm();
+      setShowAddModal(true);
+  };
+
   const handleEdit = (e: React.MouseEvent, tx: Transaction) => {
     e.preventDefault();
     e.stopPropagation();
@@ -66,8 +75,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
       date: tx.date,
       cardId: tx.cardId || ''
     });
-    // Scroll to top to see form
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setShowAddModal(true); // Open modal for editing
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -116,12 +124,6 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
                 // CRITICAL: Save settings first and get fresh IDs/Data
                 const savedSettings = await storageService.saveSettings(newSettings);
                 setSettings(savedSettings);
-
-                // Ensure we use the valid ID from the refreshed settings
-                // We try to find the card that matches the one we just updated.
-                // Since we preserve IDs now in storageService, the ID *should* be the same.
-                // But just in case it was a new card that got a UUID assigned, we might need logic.
-                // However, user selects from existing list, so ID exists.
             }
         }
 
@@ -143,6 +145,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
       const fresh = await storageService.getTransactions();
       setTransactions(fresh);
       resetForm();
+      setShowAddModal(false); // Close Modal
     } catch (e) {
       console.error(e);
       notify('حدث خطأ أثناء حفظ العملية', 'error');
@@ -204,7 +207,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
             type: parsed.type,
             category: parsed.category,
             date: parsed.date || new Date().toISOString(),
-            note: `آلي: ${parsed.merchant}`,
+            note: `من: ${parsed.merchant}`,
             cardId: matchedCardId || undefined
          };
          await storageService.saveTransaction(newTx);
@@ -285,6 +288,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
       const fresh = await storageService.getTransactions();
       setTransactions(fresh);
       if (editingId === id) resetForm();
+      setShowAddModal(false);
       notify('تم حذف العملية', 'info');
     } catch(e) {
       console.error(e);
@@ -300,197 +304,284 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
   );
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8 animate-fade-in pb-20 md:pb-0">
-      {/* Input Form */}
-      <div className="lg:col-span-1">
-        <div className="bg-white dark:bg-slate-900 p-4 md:p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 sticky top-8 transition-all">
-          
-          {/* Smart Add Button */}
-          {!editingId && (
-            <button 
-              onClick={() => setShowSmartModal(true)}
-              className="w-full mb-6 bg-gradient-to-r from-violet-600 to-indigo-600 text-white py-3 px-4 rounded-xl font-bold text-sm hover:shadow-lg hover:scale-[1.02] transition-all flex items-center justify-center gap-2"
-            >
-              <Sparkles size={18} className="text-yellow-300" />
-              <span>تسجيل ذكي (لصق رسالة نصية)</span>
-            </button>
-          )}
-
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="font-bold text-lg text-slate-800 dark:text-white">
-              {editingId ? 'تعديل العملية' : 'تسجيل يدوياً'}
-            </h3>
-            {editingId && (
-              <div className="flex gap-2">
-                 <button 
-                   type="button"
-                   onClick={(e) => handleDelete(e, editingId)} 
-                   disabled={deletingId === editingId}
-                   className="text-xs text-white bg-rose-500 px-3 py-1.5 rounded-lg font-bold flex items-center justify-center gap-1 hover:bg-rose-600 transition-colors shadow-sm w-20 disabled:opacity-50"
-                 >
-                   {deletingId === editingId ? <Loader2 size={14} className="animate-spin"/> : <><Trash2 size={14}/> حذف</>}
-                 </button>
-                 <button 
-                   type="button"
-                   onClick={resetForm} 
-                   className="text-xs text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-                 >
-                   <X size={14}/> إلغاء
-                 </button>
-              </div>
-            )}
-          </div>
-          
-          <form onSubmit={handleSubmit} className="space-y-4">
-             <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg mb-4">
-                <button
-                  type="button"
-                  onClick={() => setFormTx({...formTx, type: TransactionType.EXPENSE})}
-                  className={`flex-1 py-2 text-sm font-medium rounded-md transition-all duration-300 ${formTx.type === TransactionType.EXPENSE ? 'bg-white dark:bg-slate-700 text-rose-600 shadow-sm' : 'text-slate-500 dark:text-slate-400'}`}
-                >
-                  مصروف / فاتورة
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFormTx({...formTx, type: TransactionType.INCOME})}
-                  className={`flex-1 py-2 text-sm font-medium rounded-md transition-all duration-300 ${formTx.type === TransactionType.INCOME ? 'bg-white dark:bg-slate-700 text-emerald-600 shadow-sm' : 'text-slate-500 dark:text-slate-400'}`}
-                >
-                  دخل / إيداع
-                </button>
-             </div>
-
-             <div className="animate-slide-up" style={{ animationDelay: '0.1s' }}>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">المبلغ</label>
-                <input 
-                  type="number" 
-                  step="0.01"
-                  required
-                  className="w-full p-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none font-mono font-bold text-lg text-slate-900 dark:text-white transition-all"
-                  placeholder="0.00"
-                  value={formTx.amount}
-                  onChange={e => setFormTx({...formTx, amount: e.target.value})}
-                />
-             </div>
-
-             <div className="animate-slide-up" style={{ animationDelay: '0.2s' }}>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">التصنيف</label>
-                <select 
-                   required
-                   className="w-full p-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-slate-700 dark:text-slate-300 transition-all"
-                   value={formTx.category}
-                   onChange={e => setFormTx({...formTx, category: e.target.value})}
-                >
-                  <option value="">اختر تصنيف...</option>
-                  {categories.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-             </div>
-
-             <div className="animate-slide-up" style={{ animationDelay: '0.25s' }}>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">خصم من البطاقة (اختياري)</label>
-                <select 
-                   className="w-full p-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-slate-700 dark:text-slate-300 transition-all text-sm"
-                   value={formTx.cardId}
-                   onChange={e => setFormTx({...formTx, cardId: e.target.value})}
-                >
-                  <option value="">-- بدون تحديد --</option>
-                  {settings.cards.map(c => <option key={c.id} value={c.id}>{c.bankName} - {c.cardNumber}</option>)}
-                </select>
-             </div>
-
-             <div className="animate-slide-up" style={{ animationDelay: '0.3s' }}>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">ملاحظة (اختياري)</label>
+    <div className="animate-fade-in pb-20 md:pb-0 max-w-5xl mx-auto">
+      
+      {/* Header Actions */}
+      <div className="flex flex-col md:flex-row gap-4 mb-6">
+          <div className="relative flex-1">
+                <Search className="absolute right-3 top-3.5 text-slate-400" size={18} />
                 <input 
                   type="text" 
-                  className="w-full p-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-slate-700 dark:text-slate-300 transition-all"
-                  placeholder="وصف مختصر، رقم الفاتورة..."
-                  value={formTx.note}
-                  onChange={e => setFormTx({...formTx, note: e.target.value})}
-                />
-             </div>
-
-             <button type="submit" disabled={isProcessing} className={`w-full text-white dark:text-slate-900 py-3 rounded-xl font-bold transition-all transform active:scale-95 shadow-lg flex items-center justify-center gap-2 ${editingId ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-slate-900 dark:bg-[#bef264] hover:bg-slate-800 dark:hover:bg-[#a3e635]'}`}>
-               {isProcessing ? <Loader2 className="animate-spin" /> : (editingId ? <><Save size={18}/> تحديث العملية</> : 'حفظ العملية')}
-             </button>
-          </form>
-        </div>
-      </div>
-
-      {/* List */}
-      <div className="lg:col-span-2">
-        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden min-h-[500px] animate-fade-in">
-          <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex gap-4 items-center">
-             <div className="relative flex-1">
-                <Search className="absolute right-3 top-3 text-slate-400" size={18} />
-                <input 
-                  type="text" 
-                  placeholder="بحث في العمليات، الفواتير، التحويلات..." 
-                  className="w-full pr-10 pl-4 py-2 bg-slate-50 dark:bg-slate-800 border-none rounded-lg outline-none focus:ring-2 focus:ring-emerald-100 text-slate-700 dark:text-slate-200 transition-all"
+                  placeholder="بحث في العمليات..." 
+                  className="w-full pr-10 pl-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-slate-700 dark:text-slate-200 transition-all shadow-sm"
                   value={filter}
                   onChange={e => setFilter(e.target.value)}
                 />
-             </div>
           </div>
-          
+          <div className="grid grid-cols-2 gap-3 w-full md:w-auto">
+               <button 
+                  onClick={() => setShowSmartModal(true)}
+                  className="bg-white dark:bg-slate-900 text-slate-700 dark:text-white border border-slate-200 dark:border-slate-800 px-4 py-3 rounded-xl font-bold text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-center gap-2 shadow-sm"
+                >
+                  <Sparkles size={16} className="text-violet-500" />
+                  <span>تسجيل ذكي</span>
+                </button>
+               <button 
+                  onClick={handleOpenAddModal}
+                  className="bg-emerald-600 text-white px-5 py-3 rounded-xl font-bold text-sm hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 shadow-lg hover:shadow-xl shadow-emerald-500/20"
+                >
+                  <Plus size={18} />
+                  <span>إضافة عملية</span>
+                </button>
+          </div>
+      </div>
+
+      {/* List */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden min-h-[500px]">
           <div className="divide-y divide-slate-50 dark:divide-slate-800">
             {filteredData.map((tx, index) => (
               <div 
-                key={tx.id} 
-                className="p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 flex justify-between items-center transition-colors animate-slide-up relative"
+                key={tx.id}
+                onClick={(e) => {
+                    // Open details if not clicking edit
+                    setSelectedTx(tx);
+                }}
+                className="p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 transition-colors animate-slide-up relative cursor-pointer group"
                 style={{ animationDelay: `${index * 0.05}s` }}
               >
-                 <div className="flex items-center gap-3 md:gap-4 overflow-hidden">
+                <div className="flex items-center gap-3 md:gap-4 w-full sm:w-auto">
                     <div className={`p-3 rounded-full shrink-0 ${tx.type === TransactionType.INCOME ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400' : 'bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400'}`}>
                       {tx.type === TransactionType.INCOME ? <ArrowUpRight size={20} /> : <ArrowDownLeft size={20} />}
                     </div>
-                    <div className="min-w-0">
-                      <h4 className="font-bold text-slate-800 dark:text-slate-200 text-sm md:text-base truncate">{tx.category}</h4>
-                      <p className="text-xs text-slate-400 truncate max-w-[150px] md:max-w-none font-mono">
-                         {new Date(tx.date).toLocaleDateString('en-GB')} • {tx.note || 'بدون وصف'}
-                         {tx.cardId && (
-                            <span className="flex items-center gap-1 mt-1 text-slate-500 font-sans">
-                                <CreditCard size={10} />
-                                {settings.cards.find(c => c.id === tx.cardId)?.cardNumber || '****'}
-                            </span>
-                         )}
-                      </p>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-bold text-slate-800 dark:text-slate-200 text-sm md:text-base">{tx.category}</h4>
+                      <div className="flex items-center gap-2 text-xs text-slate-400 whitespace-normal">
+                         <span>{new Date(tx.date).toLocaleDateString('en-GB')}</span>
+                         {tx.note && <span>• {tx.note}</span>}
+                      </div>
+                      {tx.cardId && (
+                        <div className="flex items-center gap-1.5 mt-1.5 text-slate-500 dark:text-slate-400 text-[10px] bg-slate-100 dark:bg-slate-800 w-fit px-2 py-0.5 rounded-full font-sans">
+                            <CreditCard size={10} />
+                            <span>{settings.cards.find(c => c.id === tx.cardId)?.bankName} •• {settings.cards.find(c => c.id === tx.cardId)?.cardNumber}</span>
+                        </div>
+                      )}
                     </div>
-                 </div>
+                </div>
                  
-                 <div className="flex items-center gap-3 md:gap-4 shrink-0">
-                    <span className={`font-bold font-mono text-base md:text-lg ${tx.type === TransactionType.INCOME ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-800 dark:text-slate-200'}`}>
+                <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto mt-2 sm:mt-0">
+                    <span className={`font-bold text-base md:text-lg ${tx.type === TransactionType.INCOME ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-800 dark:text-slate-200'}`}>
                        {tx.type === TransactionType.INCOME ? '+' : '-'}{tx.amount.toLocaleString('en-US')}
                     </span>
-                    
-                    <div className="flex gap-2">
-                        <button 
-                          type="button"
-                          onClick={(e) => handleEdit(e, tx)}
-                          className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
-                          title="تعديل"
-                        >
-                          <Edit3 size={18} />
-                        </button>
-                        <button 
-                          type="button"
-                          onClick={(e) => handleDelete(e, tx.id)}
-                          disabled={deletingId === tx.id}
-                          className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          title="حذف"
-                        >
-                          {deletingId === tx.id ? <Loader2 size={18} className="animate-spin text-rose-500" /> : <Trash2 size={18} />}
-                        </button>
-                    </div>
+                    {/* Edit button removed from here */}
                  </div>
               </div>
             ))}
             {filteredData.length === 0 && (
-               <div className="p-12 text-center text-slate-400 animate-fade-in">
-                 لا توجد عمليات تطابق البحث.
+               <div className="p-12 text-center text-slate-400 animate-fade-in flex flex-col items-center gap-3">
+                 <Search size={48} className="opacity-20"/>
+                 <p>لا توجد عمليات تطابق البحث.</p>
+                 <button onClick={handleOpenAddModal} className="text-emerald-600 font-bold text-sm hover:underline">إضافة عملية جديدة</button>
                </div>
             )}
           </div>
-        </div>
       </div>
+      
+      {/* Add / Edit Transaction Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+             <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-3xl p-6 shadow-2xl animate-scale-in border border-slate-200 dark:border-slate-800">
+                <div className="flex justify-between items-center mb-6 border-b border-slate-100 dark:border-slate-800 pb-4">
+                    <h3 className="font-bold text-xl text-slate-800 dark:text-white">
+                        {editingId ? 'تعديل العملية' : 'تسجيل يدوياً'}
+                    </h3>
+                    <button onClick={() => setShowAddModal(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-500 transition-colors">
+                        <X size={24}/>
+                    </button>
+                </div>
+                
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl mb-4">
+                        <button
+                        type="button"
+                        onClick={() => setFormTx({...formTx, type: TransactionType.EXPENSE})}
+                        className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all duration-300 ${formTx.type === TransactionType.EXPENSE ? 'bg-white dark:bg-slate-700 text-rose-600 shadow-sm' : 'text-slate-500 dark:text-slate-400'}`}
+                        >
+                        مصروف / فاتورة
+                        </button>
+                        <button
+                        type="button"
+                        onClick={() => setFormTx({...formTx, type: TransactionType.INCOME})}
+                        className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all duration-300 ${formTx.type === TransactionType.INCOME ? 'bg-white dark:bg-slate-700 text-emerald-600 shadow-sm' : 'text-slate-500 dark:text-slate-400'}`}
+                        >
+                        دخل / إيداع
+                        </button>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">المبلغ</label>
+                        <div className="relative">
+                            <input 
+                            type="number" 
+                            step="0.01"
+                            required
+                            autoFocus
+                            className="w-full p-3 pl-12 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-lg text-slate-900 dark:text-white transition-all"
+                            placeholder="0.00"
+                            value={formTx.amount}
+                            onChange={e => setFormTx({...formTx, amount: e.target.value})}
+                            />
+                            <span className="absolute left-4 top-4 text-slate-400 text-xs font-bold">SAR</span>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">التصنيف</label>
+                        <select 
+                        required
+                        className="w-full p-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-slate-700 dark:text-slate-300 transition-all font-medium"
+                        value={formTx.category}
+                        onChange={e => setFormTx({...formTx, category: e.target.value})}
+                        >
+                        <option value="">اختر تصنيف...</option>
+                        {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">خصم من البطاقة (اختياري)</label>
+                        <select 
+                        className="w-full p-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-slate-700 dark:text-slate-300 transition-all text-sm font-medium"
+                        value={formTx.cardId}
+                        onChange={e => setFormTx({...formTx, cardId: e.target.value})}
+                        >
+                        <option value="">-- بدون تحديد --</option>
+                        {settings.cards.map(c => <option key={c.id} value={c.id}>{c.bankName} - {c.cardNumber}</option>)}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">ملاحظة (اختياري)</label>
+                        <input 
+                        type="text" 
+                        className="w-full p-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-slate-700 dark:text-slate-300 transition-all text-sm"
+                        placeholder="وصف مختصر، رقم الفاتورة..."
+                        value={formTx.note}
+                        onChange={e => setFormTx({...formTx, note: e.target.value})}
+                        />
+                    </div>
+
+                    <div className="pt-4 flex gap-3">
+                         {editingId && (
+                             <button 
+                                type="button"
+                                onClick={(e) => handleDelete(e, editingId)}
+                                className="px-4 py-3 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl font-bold transition-colors"
+                             >
+                                 <Trash2 size={20}/>
+                             </button>
+                         )}
+                        <button type="submit" disabled={isProcessing} className={`flex-1 text-white dark:text-slate-900 py-3 rounded-xl font-bold transition-all transform active:scale-95 shadow-lg flex items-center justify-center gap-2 ${editingId ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-slate-900 dark:bg-[#bef264] hover:bg-slate-800 dark:hover:bg-[#a3e635]'}`}>
+                        {isProcessing ? <Loader2 className="animate-spin" /> : (editingId ? <><Save size={18}/> تحديث العملية</> : <><Plus size={18}/> حفظ العملية</>)}
+                        </button>
+                    </div>
+                </form>
+             </div>
+        </div>
+      )}
+
+      {/* Transaction Details Modal */}
+      {selectedTx && !showAddModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+            <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-3xl shadow-2xl animate-scale-in border border-slate-200 dark:border-slate-800">
+                {/* Header */}
+                <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-start">
+                    <div>
+                        <span className={`text-xs font-bold px-2 py-1 rounded-full ${selectedTx.type === TransactionType.INCOME ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'}`}>
+                            {selectedTx.type === TransactionType.INCOME ? 'دخل' : 'مصروف'}
+                        </span>
+                        <h3 className="font-bold text-2xl text-slate-800 dark:text-white mt-2">{selectedTx.category}</h3>
+                    </div>
+                    <button onClick={() => { setSelectedTx(null); setShowDeleteConfirm(false); }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-500"><X size={20}/></button>
+                </div>
+                
+                {/* Body */}
+                <div className="p-6 space-y-4">
+                    <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl">
+                        <span className="text-sm text-slate-500 dark:text-slate-400">المبلغ</span>
+                        <span className={`font-bold text-2xl ${selectedTx.type === TransactionType.INCOME ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-900 dark:text-white'}`}>
+                            {selectedTx.type === TransactionType.INCOME ? '+' : '-'}{selectedTx.amount.toLocaleString('en-US')} SAR
+                        </span>
+                    </div>
+                    <div className="text-sm">
+                        <p className="text-slate-400">التاريخ</p>
+                        <p className="font-bold dark:text-slate-200">{new Date(selectedTx.date).toLocaleString('ar-SA', { dateStyle: 'full', timeStyle: 'short' })}</p>
+                    </div>
+                     {selectedTx.note && (
+                        <div className="text-sm">
+                            <p className="text-slate-400">ملاحظة</p>
+                            <p className="font-bold dark:text-slate-200">{selectedTx.note}</p>
+                        </div>
+                     )}
+                     {selectedTx.cardId && settings.cards.find(c => c.id === selectedTx.cardId) && (
+                         <div className="text-sm">
+                            <p className="text-slate-400">البطاقة المستخدمة</p>
+                            <p className="font-bold dark:text-slate-200 flex items-center gap-2">
+                                <CreditCard size={14}/>
+                                {settings.cards.find(c => c.id === selectedTx.cardId)?.bankName} •••• {settings.cards.find(c => c.id === selectedTx.cardId)?.cardNumber}
+                            </p>
+                        </div>
+                     )}
+                </div>
+                
+                {/* Actions */}
+                <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800">
+                    {!showDeleteConfirm ? (
+                        <div className="flex gap-3">
+                            <button 
+                                onClick={() => setShowDeleteConfirm(true)}
+                                className="flex-1 py-3 bg-rose-50 text-rose-600 rounded-xl text-sm font-bold hover:bg-rose-100 transition-colors flex items-center justify-center gap-2">
+                                <Trash2 size={16}/> حذف
+                            </button>
+                            <button 
+                                onClick={(e) => {
+                                    if (selectedTx) {
+                                        handleEdit(e, selectedTx);
+                                        setSelectedTx(null);
+                                    }
+                                }}
+                                className="flex-[2] py-3 bg-slate-900 text-white dark:bg-slate-200 dark:text-slate-900 rounded-xl text-sm font-bold hover:bg-slate-700 transition-colors flex items-center justify-center gap-2">
+                                <Edit3 size={16}/> تعديل
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="text-center">
+                            <p className="text-sm font-bold text-rose-600 dark:text-rose-400 mb-3 flex items-center gap-2 justify-center"><AlertTriangle size={16}/> هل أنت متأكد من الحذف؟</p>
+                            <p className="text-xs text-slate-500 mb-3">سيتم استرجاع المبلغ لرصيد البطاقة المرتبطة (إن وجدت).</p>
+                            <div className="flex gap-3">
+                                 <button 
+                                    onClick={() => setShowDeleteConfirm(false)}
+                                    className="flex-1 py-3 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-sm font-bold">
+                                    إلغاء
+                                </button>
+                                <button 
+                                    onClick={async (e) => {
+                                        if (selectedTx) {
+                                            await handleDelete(e, selectedTx.id);
+                                            setSelectedTx(null);
+                                            setShowDeleteConfirm(false);
+                                        }
+                                    }}
+                                    disabled={deletingId === selectedTx.id}
+                                    className="flex-[2] py-3 bg-rose-600 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2">
+                                    {deletingId === selectedTx.id ? <Loader2 className="animate-spin"/> : <><Trash2 size={16}/> تأكيد الحذف</>}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+      )}
 
       {/* Smart SMS Modal */}
       {showSmartModal && (

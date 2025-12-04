@@ -1,4 +1,5 @@
 
+
 import { supabase, DEFAULT_USER_ID } from './supabaseClient';
 import { Transaction, Loan, UserSettings, TransactionType, LoanType, IncomeSource, BankCard, LoanScheduleItem, Bill, FinancialGoal, RecurringTransaction, CustomCategory, LogoPosition, EntityLogo } from '../types';
 
@@ -675,7 +676,7 @@ export const storageService = {
                           type: TransactionType.INCOME,
                           category: 'راتب',
                           date: today.toISOString(),
-                          note: `إيداع تلقائي: ${income.name}`,
+                          note: `من: ${income.name}`, // Changed from 'إيداع تلقائي:' to 'من:'
                           cardId: settings.cards.length > 0 ? settings.cards[0].id : undefined // Default to first card
                       };
                       await storageService.saveTransaction(tx);

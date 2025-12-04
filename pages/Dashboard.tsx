@@ -275,7 +275,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         type: parsedData.type,
         category: parsedData.category,
         date: parsedData.date || new Date().toISOString(),
-        note: `عملية آلية: ${parsedData.merchant}`
+        note: `من: ${parsedData.merchant}`
       };
 
       // 4. Update Balance
@@ -358,12 +358,12 @@ const Dashboard: React.FC<DashboardProps> = ({
                       <h4 className="text-sm font-bold text-slate-500 mb-1">نقاط الصحة المالية</h4>
                       <div className="flex items-center gap-2">
                           <Activity className={healthScore > 70 ? 'text-emerald-500' : 'text-amber-500'} />
-                          <span className={`text-2xl font-bold font-mono ${healthScore > 70 ? 'text-emerald-500' : 'text-amber-500'}`}>{healthScore}/100</span>
+                          <span className={`text-2xl font-bold ${healthScore > 70 ? 'text-emerald-500' : 'text-amber-500'}`}>{healthScore}/100</span>
                       </div>
                   </div>
                   <div className="w-16 h-16 rounded-full border-4 border-slate-100 dark:border-slate-800 flex items-center justify-center relative">
                       <div className={`absolute inset-0 rounded-full border-4 ${healthScore > 70 ? 'border-emerald-500' : 'border-amber-500'}`} style={{clipPath: `inset(0 0 ${100 - healthScore}% 0)`}}></div>
-                      <span className="text-xs font-bold text-slate-400 font-mono">{healthScore}%</span>
+                      <span className="text-xs font-bold text-slate-400">{healthScore}%</span>
                   </div>
               </div>
 
@@ -371,7 +371,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                   <div>
                       <h4 className="text-sm font-bold text-slate-500 mb-1">قابل للصرف (الآن)</h4>
                       <p className="text-xs text-slate-400 mb-2">إجمالي أرصدة البطاقات</p>
-                      <h3 className="text-2xl font-bold text-slate-900 dark:text-white sensitive-data font-mono">{safeToSpend.toLocaleString('en-US')} {settings.currency}</h3>
+                      <h3 className="text-2xl font-bold text-slate-900 dark:text-white sensitive-data">{safeToSpend.toLocaleString('en-US')} {settings.currency}</h3>
                   </div>
                   <div className="p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-full text-indigo-500">
                       <ShieldCheck size={24} />
@@ -390,10 +390,10 @@ const Dashboard: React.FC<DashboardProps> = ({
                       </div>
                       <span className="font-medium text-sm">الدخل</span>
                    </div>
-                   <h3 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white sensitive-data font-mono">{totalRealizedIncome.toLocaleString('en-US')} {settings.currency}</h3>
+                   <h3 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white sensitive-data">{totalRealizedIncome.toLocaleString('en-US')} {settings.currency}</h3>
                 </div>
                 <div className="flex flex-col items-end">
-                   <span className="bg-[#bef264] text-slate-900 text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1 font-mono">
+                   <span className="bg-[#bef264] text-slate-900 text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1">
                       <ArrowUpRight size={14} />
                       1.78%
                    </span>
@@ -410,10 +410,10 @@ const Dashboard: React.FC<DashboardProps> = ({
                       </div>
                       <span className="font-medium text-sm">المصروفات</span>
                    </div>
-                   <h3 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white sensitive-data font-mono">{totalExpense.toLocaleString('en-US')} {settings.currency}</h3>
+                   <h3 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white sensitive-data">{totalExpense.toLocaleString('en-US')} {settings.currency}</h3>
                 </div>
                 <div className="flex flex-col items-end">
-                   <span className="bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1 font-mono">
+                   <span className="bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1">
                       <ArrowUpRight size={14} />
                       2.45%
                    </span>
@@ -427,7 +427,7 @@ const Dashboard: React.FC<DashboardProps> = ({
              <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-8 gap-4">
                 <div>
                    <h3 className="text-xl font-bold text-slate-900 dark:text-white">التدفق النقدي</h3>
-                   <p className="text-sm text-slate-400">إجمالي الرصيد <span className="text-emerald-500 font-bold sensitive-data font-mono">{balance.toLocaleString('en-US')} {settings.currency}</span></p>
+                   <p className="text-sm text-slate-400">إجمالي الرصيد <span className="text-emerald-500 font-bold sensitive-data">{balance.toLocaleString('en-US')} {settings.currency}</span></p>
                 </div>
              </div>
              
@@ -473,7 +473,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                        <div key={idx} className="relative">
                            <div className="flex justify-between text-sm mb-1">
                                <span className="font-bold text-slate-700 dark:text-slate-200">{item.name}</span>
-                               <span className="text-slate-500 sensitive-data font-mono">{item.value.toLocaleString('en-US')}</span>
+                               <span className="text-slate-500 sensitive-data">{item.value.toLocaleString('en-US')}</span>
                            </div>
                            <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                                <div 
@@ -518,7 +518,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                         <div className="text-right">
                              <h4 className="font-bold text-lg drop-shadow-sm">{activeCard.bankName || 'Debit Card'}</h4>
                              <p className="text-[10px] opacity-80 mt-1">الرصيد</p>
-                             <h3 className="text-2xl font-bold sensitive-data font-mono tracking-tight drop-shadow-md">
+                             <h3 className="text-2xl font-bold sensitive-data tracking-tight drop-shadow-md">
                                {settings.currency} {(activeCard.balance ?? 0).toLocaleString('en-US')}
                              </h3>
                         </div>
@@ -532,7 +532,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 
                     {/* Bottom Row - Card Number Centered */}
                     <div className="flex justify-center items-end mt-auto mb-2">
-                        <p className="font-bold text-2xl tracking-widest sensitive-data drop-shadow-md font-mono" dir="ltr" style={{fontFamily: 'monospace'}}>
+                        <p className="font-bold text-2xl tracking-widest sensitive-data drop-shadow-md" dir="ltr">
                            {activeCard.cardNumber ? `•••• ${activeCard.cardNumber}` : '•••• 0000'}
                         </p>
                     </div>
@@ -575,7 +575,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                      <div className="absolute right-0 top-1 w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-800 border-4 border-white dark:border-slate-900 flex items-center justify-center z-10">
                         <Zap size={14} className="text-amber-500" />
                      </div>
-                     <p className="text-xs text-slate-400 mb-1 font-mono">11:45 AM</p>
+                     <p className="text-xs text-slate-400 mb-1">11:45 AM</p>
                      <p className="text-sm font-medium text-slate-800 dark:text-slate-200">تنبيه انخفاض الرصيد</p>
                   </div>
                </div>
@@ -632,7 +632,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                           type="number" 
                           autoFocus
                           required
-                          className="w-full text-3xl font-bold bg-transparent outline-none border-b-2 border-slate-100 dark:border-slate-700 focus:border-[#bef264] py-2 text-slate-900 dark:text-white text-center font-mono"
+                          className="w-full text-3xl font-bold bg-transparent outline-none border-b-2 border-slate-100 dark:border-slate-700 focus:border-[#bef264] py-2 text-slate-900 dark:text-white text-center"
                           placeholder="0.00"
                           value={amount}
                           onChange={e => setAmount(e.target.value)}
@@ -641,7 +641,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                      
                      <div>
                         <label className="block text-xs font-medium text-slate-500 mb-1">
-                          {modalConfig.type === 'transfer' ? 'إلى المستفيد' : 'من المصدر'}
+                          {modalConfig.type === 'transfer' ? 'إلى المستفيد' : 'من'}
                         </label>
                         <input 
                           type="text" 
@@ -659,7 +659,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                         </div>
                         <div>
                            <p className="text-xs text-slate-400">من الحساب</p>
-                           <p className="text-xs font-bold text-slate-800 dark:text-slate-200 sensitive-data font-mono">{activeCard.bankName} •••• {activeCard.cardNumber}</p>
+                           <p className="text-xs font-bold text-slate-800 dark:text-slate-200 sensitive-data">{activeCard.bankName} •••• {activeCard.cardNumber}</p>
                         </div>
                      </div>
 

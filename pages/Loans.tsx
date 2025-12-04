@@ -834,24 +834,24 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                             <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 mb-4">
                                 <div>
                                     <span className="block mb-0.5">المدفوع</span>
-                                    <span className="font-bold text-slate-700 dark:text-slate-300 text-sm font-mono">{paid.toLocaleString('en-US')}</span>
+                                    <span className="font-bold text-slate-700 dark:text-slate-300 text-sm">{paid.toLocaleString('en-US')}</span>
                                 </div>
                                 <div className="text-left">
                                     <span className="block mb-0.5">المتبقي</span>
-                                    <span className="font-bold text-rose-600 dark:text-rose-400 text-sm font-mono">{remaining.toLocaleString('en-US')}</span>
+                                    <span className="font-bold text-rose-600 dark:text-rose-400 text-sm">{remaining.toLocaleString('en-US')}</span>
                                 </div>
                             </div>
                             
                             <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-3 grid grid-cols-2 gap-3 text-xs mb-3 border border-slate-100 dark:border-slate-700">
                                  <div>
                                     <span className="block text-slate-400 mb-1">القسط القادم</span>
-                                    <span className="font-bold text-base text-slate-800 dark:text-white font-mono">
+                                    <span className="font-bold text-base text-slate-800 dark:text-white">
                                         {nextPayment ? nextPayment.paymentAmount.toLocaleString('en-US') : '-'}
                                     </span>
                                  </div>
                                  <div className="text-left border-r border-slate-200 dark:border-slate-700 pr-3">
                                     <span className="block text-slate-400 mb-1">يستحق في</span>
-                                    <span className="font-bold text-slate-800 dark:text-white font-mono">
+                                    <span className="font-bold text-slate-800 dark:text-white">
                                         {nextPayment ? new Date(nextPayment.paymentDate).toLocaleDateString('en-GB') : 'مكتمل'}
                                     </span>
                                  </div>
@@ -884,7 +884,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                           <p className="text-sm text-purple-700 dark:text-purple-300">يتم صرف مبالغ صغيرة تتراكم لتصبح كبيرة!</p>
                       </div>
                   </div>
-                  <div className="text-2xl font-bold text-purple-800 dark:text-purple-200 font-mono">
+                  <div className="text-2xl font-bold text-purple-800 dark:text-purple-200">
                       {(filteredBills.reduce((acc, b) => acc + b.amount, 0) * 12).toLocaleString('en-US')} <span className="text-sm">/سنة</span>
                   </div>
               </div>
@@ -916,12 +916,12 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
 
                       <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl mb-3 border border-slate-100 dark:border-slate-700">
                           <span className="text-xs text-slate-500 dark:text-slate-400">القيمة</span>
-                          <span className="font-bold text-xl text-slate-900 dark:text-white font-mono">{bill.amount.toFixed(2)}</span>
+                          <span className="font-bold text-xl text-slate-900 dark:text-white">{bill.amount.toFixed(2)}</span>
                       </div>
                       
                       <div className="space-y-2 pt-2 border-t border-slate-50 dark:border-slate-800">
                           {(bill.startDate || bill.endDate) && (
-                              <div className="flex justify-between text-[10px] text-slate-500 dark:text-slate-400 font-mono">
+                              <div className="flex justify-between text-[10px] text-slate-500 dark:text-slate-400">
                                   {bill.startDate && <span>البداية: {new Date(bill.startDate).toLocaleDateString('en-GB')}</span>}
                                   {bill.endDate && <span>النهاية: {new Date(bill.endDate).toLocaleDateString('en-GB')}</span>}
                               </div>
@@ -949,7 +949,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                               </div>
                               {estimatedRemaining > 0 && (
                                   <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
-                                      إجمالي المتوقع: <span className="text-rose-500 dark:text-rose-400 font-mono">{estimatedRemaining.toLocaleString('en-US')}</span>
+                                      إجمالي المتوقع: <span className="text-rose-500 dark:text-rose-400">{estimatedRemaining.toLocaleString('en-US')}</span>
                                   </div>
                               )}
                           </div>
@@ -962,7 +962,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                           </div>
                       )}
                       {bill.renewalDate && (
-                          <div className="mt-3 text-xs text-purple-600 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/20 p-2 rounded flex items-center gap-1 font-mono">
+                          <div className="mt-3 text-xs text-purple-600 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/20 p-2 rounded flex items-center gap-1">
                               <Calendar size={12}/>
                               تجديد: {new Date(bill.renewalDate).toLocaleDateString('en-GB')}
                           </div>
@@ -1006,11 +1006,11 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                         <div className="grid grid-cols-2 gap-4 text-sm">
                             <div className="bg-white dark:bg-slate-800 p-3 rounded-xl border dark:border-slate-700">
                                 <span className="text-slate-400 text-xs block mb-1">المبلغ</span>
-                                <span className="font-bold text-lg dark:text-white font-mono">{selectedBill.amount.toLocaleString('en-US')}</span>
+                                <span className="font-bold text-lg dark:text-white">{selectedBill.amount.toLocaleString('en-US')}</span>
                             </div>
                             <div className="bg-white dark:bg-slate-800 p-3 rounded-xl border dark:border-slate-700">
                                 <span className="text-slate-400 text-xs block mb-1">تاريخ البداية</span>
-                                <span className="font-bold dark:text-white font-mono">{selectedBill.startDate ? new Date(selectedBill.startDate).toLocaleDateString('en-GB') : 'غير محدد'}</span>
+                                <span className="font-bold dark:text-white">{selectedBill.startDate ? new Date(selectedBill.startDate).toLocaleDateString('en-GB') : 'غير محدد'}</span>
                             </div>
                             {selectedBill.deviceDetails && (
                                 <div className="col-span-2 bg-white dark:bg-slate-800 p-3 rounded-xl border dark:border-slate-700">
@@ -1035,8 +1035,8 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                                 <tbody>
                                     {getBillSchedule(selectedBill).map((item, idx) => (
                                         <tr key={idx} className={`border-b border-slate-100 dark:border-slate-800 last:border-0 ${item.isPaid ? 'bg-slate-50/50 dark:bg-slate-800/30' : 'bg-white dark:bg-slate-900'}`}>
-                                            <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-200 font-mono">{item.date.toLocaleDateString('en-GB')}</td>
-                                            <td className="px-4 py-3 font-bold font-mono">{item.amount.toLocaleString('en-US')}</td>
+                                            <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-200">{item.date.toLocaleDateString('en-GB')}</td>
+                                            <td className="px-4 py-3 font-bold">{item.amount.toLocaleString('en-US')}</td>
                                             <td className="px-4 py-3">
                                                 {item.isPaid ? (
                                                     <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"><CheckCircle size={12}/> مدفوع</span>
@@ -1095,9 +1095,9 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                             <tbody>
                                 {selectedLoan.schedule.map((item, idx) => (
                                     <tr key={idx} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                                        <td className="px-6 py-4 font-mono">{new Date(item.paymentDate).toLocaleDateString('en-GB')}</td>
-                                        <td className="px-6 py-4 font-bold text-slate-700 dark:text-slate-200 font-mono">{item.paymentAmount.toFixed(2)}</td>
-                                        <td className="px-6 py-4 font-mono">{item.remainingBalance.toFixed(2)}</td>
+                                        <td className="px-6 py-4">{new Date(item.paymentDate).toLocaleDateString('en-GB')}</td>
+                                        <td className="px-6 py-4 font-bold text-slate-700 dark:text-slate-200">{item.paymentAmount.toFixed(2)}</td>
+                                        <td className="px-6 py-4">{item.remainingBalance.toFixed(2)}</td>
                                         <td className="px-6 py-4">
                                             {item.isPaid ? (
                                                 <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"><CheckCircle size={12}/> مدفوع</span>
@@ -1130,7 +1130,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
 
                   <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700 mb-6 text-center">
                       <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">{paymentModal.title}</p>
-                      <h2 className="text-3xl font-bold text-slate-900 dark:text-white font-mono">{paymentModal.amount.toLocaleString('en-US')} <span className="text-sm">SAR</span></h2>
+                      <h2 className="text-3xl font-bold text-slate-900 dark:text-white">{paymentModal.amount.toLocaleString('en-US')} <span className="text-sm">SAR</span></h2>
                   </div>
 
                   <div className="mb-6">
@@ -1149,7 +1149,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                                           <p className="text-xs text-slate-500">**** {card.cardNumber}</p>
                                       </div>
                                   </div>
-                                  <span className="font-mono text-sm font-bold text-slate-600 dark:text-slate-400">{card.balance?.toLocaleString('en-US')}</span>
+                                  <span className="text-sm font-bold text-slate-600 dark:text-slate-400">{card.balance?.toLocaleString('en-US')}</span>
                               </button>
                           ))}
                           <button
@@ -1185,7 +1185,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                   <div className="space-y-4 text-center">
                       <div className="p-4 bg-emerald-50 dark:bg-emerald-900/30 rounded-xl">
                           <p className="text-sm text-slate-500 dark:text-slate-400">المبلغ المطلوب للسداد اليوم</p>
-                          <h2 className="text-3xl font-bold text-emerald-600 dark:text-emerald-400 font-mono">{calculateEarlySettlement().toLocaleString('en-US')} SAR</h2>
+                          <h2 className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{calculateEarlySettlement().toLocaleString('en-US')} SAR</h2>
                       </div>
                       <p className="text-xs text-slate-400">* يشمل المبلغ المتبقي من الأصل + أرباح 3 أشهر قادمة (حسب تقديرات البنك المركزي السعودي التقريبية).</p>
                   </div>
@@ -1380,8 +1380,8 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                 <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
                     {manualSchedule.map((item, idx) => (
                         <div key={idx} className="flex items-center gap-3 text-sm border-b border-slate-50 dark:border-slate-800 pb-2">
-                            <span className="w-8 text-slate-400 font-mono">#{idx+1}</span>
-                            <span className="w-24 text-slate-600 dark:text-slate-300 text-xs font-mono">{item.date}</span>
+                            <span className="w-8 text-slate-400">#{idx+1}</span>
+                            <span className="w-24 text-slate-600 dark:text-slate-300 text-xs">{item.date}</span>
                             <input 
                                 type="number" 
                                 value={item.amount} 
@@ -1395,7 +1395,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                 <div className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center">
                     <div>
                         <p className="text-xs text-slate-400">المجموع الكلي</p>
-                        <p className="font-bold text-lg text-slate-900 dark:text-white font-mono">{manualSchedule.reduce((a,b)=>a+b.amount,0).toLocaleString('en-US')}</p>
+                        <p className="font-bold text-lg text-slate-900 dark:text-white">{manualSchedule.reduce((a,b)=>a+b.amount,0).toLocaleString('en-US')}</p>
                     </div>
                     <button onClick={confirmManualSchedule} className="bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-emerald-700">اعتماد الجدول</button>
                 </div>
@@ -1457,7 +1457,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                         <input 
                           type="text" 
                           required
-                          className="w-full p-3 pl-12 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none font-mono text-lg font-bold dark:text-white"
+                          className="w-full p-3 pl-12 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-lg font-bold dark:text-white"
                           placeholder="0.00"
                           value={newLoan.amount}
                           onChange={(e) => setNewLoan({...newLoan, amount: e.target.value})}
@@ -1480,7 +1480,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                         <div className="relative">
                             <input 
                               type="text" 
-                              className="w-full p-3 pl-12 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none font-mono text-lg font-bold dark:text-white"
+                              className="w-full p-3 pl-12 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-lg font-bold dark:text-white"
                               placeholder="0.00"
                               value={newLoan.rate}
                               onChange={(e) => setNewLoan({...newLoan, rate: e.target.value})}
@@ -1496,7 +1496,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                           <input 
                             type="number" 
                             required
-                            className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none font-mono text-lg font-bold dark:text-white"
+                            className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-lg font-bold dark:text-white"
                             placeholder="60"
                             value={newLoan.duration}
                             onChange={(e) => {
