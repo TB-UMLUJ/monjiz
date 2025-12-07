@@ -75,6 +75,34 @@ export const getFinancialAdvice = async (
   }
 };
 
+export const getSavingsAnalysis = async (savedAmount: number, itemsCleared: string[]): Promise<string> => {
+  try {
+    if (!API_KEY) return "الرجاء إعداد مفتاح API.";
+
+    const ai = new GoogleGenAI({ apiKey: API_KEY });
+
+    const prompt = `
+      المستخدم يخطط لسداد أو إلغاء الالتزامات التالية: [${itemsCleared.join(', ')}].
+      هذا سيوفر له مبلغ شهري قدره: ${savedAmount} ريال.
+
+      بصفتك مستشاراً مالياً ذكياً:
+      1. هنئه على هذه الخطوة.
+      2. اقترح عليه أفضل طريقة لاستثمار هذا المبلغ الفائض (${savedAmount}) شهرياً (مثلاً: صندوق طوارئ، استثمار في الأسهم، أو ادخار لتقاعد).
+      3. كن مختصراً ومحفزاً جداً باللغة العربية.
+    `;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+    });
+
+    return response.text || "تحليل التوفير غير متاح حالياً.";
+  } catch (error) {
+    console.error("Gemini Savings Analysis Error", error);
+    return "حدث خطأ في خدمة الذكاء الاصطناعي.";
+  }
+};
+
 export interface ParsedSMS {
   amount: number;
   merchant: string;

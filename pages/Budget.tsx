@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Transaction, UserSettings, FinancialGoal } from '../types';
+import { Transaction, UserSettings, FinancialGoal, Loan, Bill } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as ReTooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { TrendingUp, AlertTriangle, Calendar, Trophy, Target, Calculator, Plus, Trash2, CheckCircle2, Crown, Zap, Save, RefreshCcw, PieChart as PieChartIcon, DollarSign } from 'lucide-react';
+import { TrendingUp, AlertTriangle, Calendar, Trophy, Target, Calculator, Plus, Trash2, CheckCircle2, Crown, Zap, Save, RefreshCcw, PieChart as PieChartIcon, DollarSign, Bot, ArrowRight, CheckSquare, Square, X, Loader2, Sparkles } from 'lucide-react';
 import { storageService } from '../services/storage';
+import { getSavingsAnalysis } from '../services/geminiService';
 import { useNotification } from '../contexts/NotificationContext';
 
 interface BudgetProps {
@@ -25,13 +26,70 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
   const [simSaving, setSimSaving] = useState(500);
   const [simMonths, setSimMonths] = useState(12);
 
+  // AI Settlement Simulator State
+  const [showAiSimModal, setShowAiSimModal] = useState(false);
+  const [activeLoans, setActiveLoans] = useState<Loan[]>([]);
+  const [activeBills, setActiveBills] = useState<Bill[]>([]);
+  const [selectedSimItems, setSelectedSimItems] = useState<string[]>([]);
+  const [simResult, setSimResult] = useState<{ totalSaved: number, aiAdvice: string } | null>(null);
+  const [isSimulating, setIsSimulating] = useState(false);
+
   useEffect(() => {
-    loadGoals();
+    loadData();
   }, []);
 
-  const loadGoals = async () => {
-    const loaded = await storageService.getGoals();
-    setGoals(loaded);
+  const loadData = async () => {
+    const loadedGoals = await storageService.getGoals();
+    setGoals(loadedGoals);
+    
+    // Fetch Loans and Bills for the simulator
+    const loansData = await storageService.getLoans();
+    const billsData = await storageService.getBills();
+    
+    setActiveLoans(loansData.filter(l => l.status === 'active'));
+    setActiveBills(billsData.filter(b => b.status === 'active' || b.status === undefined));
+  };
+
+  // --- AI Simulator Handlers ---
+  const toggleSimItem = (id: string) => {
+      setSelectedSimItems(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+  };
+
+  const calculateSimSavings = async () => {
+      if (selectedSimItems.length === 0) return;
+      setIsSimulating(true);
+      
+      let totalMonthly = 0;
+      const itemNames: string[] = [];
+
+      // Calculate Loans
+      activeLoans.forEach(loan => {
+          if (selectedSimItems.includes(loan.id)) {
+              // Find next payment amount
+              const nextPayment = loan.schedule.find(s => !s.isPaid)?.paymentAmount;
+              if (nextPayment) {
+                  totalMonthly += nextPayment;
+                  itemNames.push(`قرض: ${loan.name}`);
+              }
+          }
+      });
+
+      // Calculate Bills
+      activeBills.forEach(bill => {
+          if (selectedSimItems.includes(bill.id)) {
+              totalMonthly += bill.amount;
+              itemNames.push(`فاتورة: ${bill.name}`);
+          }
+      });
+
+      // Get AI Advice
+      const advice = await getSavingsAnalysis(Math.round(totalMonthly), itemNames);
+      
+      setSimResult({
+          totalSaved: Math.round(totalMonthly),
+          aiAdvice: advice
+      });
+      setIsSimulating(false);
   };
 
   // --- 1. Calculations & Logic ---
@@ -133,7 +191,7 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
   const handleUpdateGoal = async (goal: FinancialGoal, increment: number) => {
       const updated = {...goal, currentAmount: Math.min(goal.currentAmount + increment, goal.targetAmount)};
       await storageService.updateGoal(updated);
-      loadGoals();
+      loadData();
       notify(`تم إضافة ${increment} للهدف`, 'success');
   };
 
@@ -345,54 +403,73 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
            </div>
        </div>
 
-       {/* 6. What-if Simulator */}
-       <div className="bg-gradient-to-r from-indigo-900 to-slate-900 text-white p-8 rounded-2xl shadow-xl relative overflow-hidden">
-           <div className="relative z-10 flex flex-col md:flex-row gap-8 items-center">
-               <div className="flex-1">
-                   <div className="flex items-center gap-3 mb-4">
-                       <Calculator className="text-[#bef264]" size={28} />
-                       <h3 className="text-2xl font-bold">محاكي "ماذا لو؟"</h3>
-                   </div>
-                   <p className="text-indigo-200 mb-6">
-                       جرب تغيير مبلغ توفيرك الشهري لترى كيف سينمو مستقبلك المالي.
-                   </p>
-                   
-                   <div className="space-y-4">
-                       <div>
-                           <label className="block text-sm text-indigo-300 mb-1">أوفر شهرياً (ريال)</label>
-                           <input 
-                               type="number" 
-                               value={simSaving} 
-                               onChange={(e) => setSimSaving(Number(e.target.value))}
-                               className="w-full bg-white/10 border border-white/20 rounded-xl p-3 text-white outline-none focus:border-[#bef264]"
-                           />
-                       </div>
-                       <div>
-                           <label className="block text-sm text-indigo-300 mb-1">لمدة (شهر)</label>
-                           <input 
-                               type="range" min="1" max="60" 
-                               value={simMonths} 
-                               onChange={(e) => setSimMonths(Number(e.target.value))}
-                               className="w-full accent-[#bef264]"
-                           />
-                           <div className="text-right text-sm text-[#bef264]">{simMonths} شهر ({Math.floor(simMonths/12)} سنة)</div>
-                       </div>
-                   </div>
-               </div>
+       {/* 6. What-if Simulator & AI Calculator */}
+       <div className="flex flex-col lg:flex-row gap-6">
+            
+            {/* AI Smart Settlement Simulator Button Card */}
+            <div className="lg:w-1/3 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 flex flex-col justify-center items-center text-center shadow-sm relative overflow-hidden group cursor-pointer hover:border-indigo-200 transition-colors" onClick={() => setShowAiSimModal(true)}>
+                <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl -mr-10 -mt-10 group-hover:bg-indigo-500/20 transition-colors"></div>
+                <div className="p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-full text-indigo-600 dark:text-indigo-400 mb-4 group-hover:scale-110 transition-transform">
+                    <Bot size={32} />
+                </div>
+                <h3 className="font-bold text-xl text-slate-900 dark:text-white mb-2">حاسبة التصفية الذكية</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+                    حدد القروض والفواتير التي تنوي سدادها، ودع الذكاء الاصطناعي يحسب لك التوفير الشهري ويقترح خطة لاستثماره.
+                </p>
+                <button className="flex items-center gap-2 text-indigo-600 font-bold text-sm">
+                    ابدأ المحاكاة <ArrowRight size={16} />
+                </button>
+            </div>
 
-               <div className="flex-1 text-center bg-white/5 p-6 rounded-2xl border border-white/10 w-full">
-                   <p className="text-sm text-indigo-300 mb-2">ستجمع مبلغ</p>
-                   <h2 className="text-4xl md:text-5xl font-bold text-white mb-2">
-                       {(simSaving * simMonths).toLocaleString('en-US')} <span className="text-lg text-[#bef264] font-tajawal">ريال</span>
-                   </h2>
-                   <p className="text-xs text-indigo-400 mt-4">
-                       * هذا المبلغ لا يشمل العوائد الاستثمارية المحتملة.
-                   </p>
-               </div>
-           </div>
-           
-           {/* Decor */}
-           <div className="absolute -top-20 -right-20 w-64 h-64 bg-[#bef264] rounded-full blur-[80px] opacity-20"></div>
+            {/* Existing Simulator */}
+            <div className="lg:w-2/3 bg-gradient-to-r from-indigo-900 to-slate-900 text-white p-8 rounded-2xl shadow-xl relative overflow-hidden">
+                <div className="relative z-10 flex flex-col md:flex-row gap-8 items-center">
+                    <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-4">
+                            <Calculator className="text-[#bef264]" size={28} />
+                            <h3 className="text-2xl font-bold">محاكي "ماذا لو؟"</h3>
+                        </div>
+                        <p className="text-indigo-200 mb-6">
+                            جرب تغيير مبلغ توفيرك الشهري لترى كيف سينمو مستقبلك المالي.
+                        </p>
+                        
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm text-indigo-300 mb-1">أوفر شهرياً (ريال)</label>
+                                <input 
+                                    type="number" 
+                                    value={simSaving} 
+                                    onChange={(e) => setSimSaving(Number(e.target.value))}
+                                    className="w-full bg-white/10 border border-white/20 rounded-xl p-3 text-white outline-none focus:border-[#bef264]"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm text-indigo-300 mb-1">لمدة (شهر)</label>
+                                <input 
+                                    type="range" min="1" max="60" 
+                                    value={simMonths} 
+                                    onChange={(e) => setSimMonths(Number(e.target.value))}
+                                    className="w-full accent-[#bef264]"
+                                />
+                                <div className="text-right text-sm text-[#bef264]">{simMonths} شهر ({Math.floor(simMonths/12)} سنة)</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex-1 text-center bg-white/5 p-6 rounded-2xl border border-white/10 w-full">
+                        <p className="text-sm text-indigo-300 mb-2">ستجمع مبلغ</p>
+                        <h2 className="text-4xl md:text-5xl font-bold text-white mb-2">
+                            {(simSaving * simMonths).toLocaleString('en-US')} <span className="text-lg text-[#bef264] font-tajawal">ريال</span>
+                        </h2>
+                        <p className="text-xs text-indigo-400 mt-4">
+                            * هذا المبلغ لا يشمل العوائد الاستثمارية المحتملة.
+                        </p>
+                    </div>
+                </div>
+                
+                {/* Decor */}
+                <div className="absolute -top-20 -right-20 w-64 h-64 bg-[#bef264] rounded-full blur-[80px] opacity-20"></div>
+            </div>
        </div>
 
        {/* 7. Income History Table (Responsive Card View for Mobile) */}
@@ -506,6 +583,114 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
                            <button type="submit" className="flex-1 py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold flex justify-center items-center gap-1"><Save size={16}/> حفظ</button>
                        </div>
                    </form>
+               </div>
+           </div>
+       )}
+
+       {/* AI Savings Simulator Modal */}
+       {showAiSimModal && (
+           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in">
+               <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-3xl p-6 shadow-2xl animate-scale-in max-h-[90vh] flex flex-col">
+                   <div className="flex justify-between items-center mb-6">
+                       <h3 className="font-bold text-xl text-slate-900 dark:text-white flex items-center gap-2"><Bot className="text-indigo-500"/> حاسبة التصفية الذكية</h3>
+                       <button onClick={() => {setShowAiSimModal(false); setSimResult(null); setSelectedSimItems([]);}} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-500"><X size={20}/></button>
+                   </div>
+                   
+                   {!simResult ? (
+                       <>
+                           <div className="bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-xl mb-4 border border-indigo-100 dark:border-indigo-800">
+                               <p className="text-sm text-indigo-800 dark:text-indigo-300">
+                                   حدد القروض أو الفواتير التي تخطط لسدادها بالكامل (تصفيتها)، وسأخبرك بحجم التوفير الشهري وأفضل طريقة لاستثماره.
+                               </p>
+                           </div>
+
+                           <div className="flex-1 overflow-y-auto pr-2 space-y-4">
+                               {activeLoans.length === 0 && activeBills.length === 0 && (
+                                   <div className="text-center py-8 text-slate-400">لا توجد التزامات نشطة حالياً.</div>
+                               )}
+                               
+                               {activeLoans.length > 0 && (
+                                   <div>
+                                       <h4 className="text-xs font-bold text-slate-500 mb-2 uppercase">القروض</h4>
+                                       <div className="space-y-2">
+                                           {activeLoans.map(loan => {
+                                               const monthly = loan.schedule.find(s=>!s.isPaid)?.paymentAmount || 0;
+                                               return (
+                                                   <div key={loan.id} onClick={() => toggleSimItem(loan.id)} className={`p-3 rounded-xl border cursor-pointer flex items-center justify-between transition-colors ${selectedSimItems.includes(loan.id) ? 'bg-indigo-50 border-indigo-500 dark:bg-indigo-900/30' : 'bg-slate-50 border-slate-200 dark:bg-slate-800 dark:border-slate-700'}`}>
+                                                       <div className="flex items-center gap-3">
+                                                           {selectedSimItems.includes(loan.id) ? <CheckSquare className="text-indigo-600"/> : <Square className="text-slate-400"/>}
+                                                           <div>
+                                                               <p className="font-bold text-slate-800 dark:text-white text-sm">{loan.name}</p>
+                                                               <p className="text-xs text-slate-500">قسط: {monthly.toLocaleString()} ريال</p>
+                                                           </div>
+                                                       </div>
+                                                   </div>
+                                               );
+                                           })}
+                                       </div>
+                                   </div>
+                               )}
+
+                               {activeBills.length > 0 && (
+                                   <div>
+                                       <h4 className="text-xs font-bold text-slate-500 mb-2 uppercase mt-4">الفواتير / الالتزامات</h4>
+                                       <div className="space-y-2">
+                                           {activeBills.map(bill => (
+                                               <div key={bill.id} onClick={() => toggleSimItem(bill.id)} className={`p-3 rounded-xl border cursor-pointer flex items-center justify-between transition-colors ${selectedSimItems.includes(bill.id) ? 'bg-indigo-50 border-indigo-500 dark:bg-indigo-900/30' : 'bg-slate-50 border-slate-200 dark:bg-slate-800 dark:border-slate-700'}`}>
+                                                   <div className="flex items-center gap-3">
+                                                       {selectedSimItems.includes(bill.id) ? <CheckSquare className="text-indigo-600"/> : <Square className="text-slate-400"/>}
+                                                       <div>
+                                                           <p className="font-bold text-slate-800 dark:text-white text-sm">{bill.name}</p>
+                                                           <p className="text-xs text-slate-500">مبلغ: {bill.amount.toLocaleString()} ريال</p>
+                                                       </div>
+                                                   </div>
+                                               </div>
+                                           ))}
+                                       </div>
+                                   </div>
+                               )}
+                           </div>
+
+                           <div className="pt-4 mt-2 border-t border-slate-100 dark:border-slate-800">
+                               <button 
+                                   onClick={calculateSimSavings}
+                                   disabled={isSimulating || selectedSimItems.length === 0}
+                                   className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                               >
+                                   {isSimulating ? <Loader2 className="animate-spin"/> : <Sparkles size={18}/>}
+                                   {isSimulating ? 'جاري التحليل...' : 'احسب التوفير ونصيحة المستشار'}
+                               </button>
+                           </div>
+                       </>
+                   ) : (
+                       <div className="animate-fade-in flex flex-col items-center text-center h-full overflow-y-auto">
+                           <div className="w-20 h-20 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center text-emerald-600 mb-4 animate-scale-in">
+                               <TrendingUp size={40} />
+                           </div>
+                           <h4 className="text-lg text-slate-500 dark:text-slate-400 mb-1">توفيرك الشهري المتوقع</h4>
+                           <h2 className="text-5xl font-bold text-slate-900 dark:text-white mb-6">
+                               {simResult.totalSaved.toLocaleString('en-US')} <span className="text-xl text-emerald-500 font-tajawal">ريال</span>
+                           </h2>
+                           
+                           <div className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-2xl w-full text-right border border-slate-100 dark:border-slate-700 relative overflow-hidden">
+                               <div className="absolute top-0 left-0 w-2 h-full bg-gradient-to-b from-indigo-500 to-purple-500"></div>
+                               <div className="flex items-center gap-2 mb-3">
+                                   <Bot className="text-indigo-500"/>
+                                   <span className="font-bold text-indigo-800 dark:text-indigo-300 text-sm">نصيحة المستشار الذكي</span>
+                               </div>
+                               <p className="text-slate-700 dark:text-slate-300 leading-relaxed text-sm md:text-base">
+                                   {simResult.aiAdvice}
+                               </p>
+                           </div>
+
+                           <button 
+                               onClick={() => { setSimResult(null); setSelectedSimItems([]); }}
+                               className="mt-8 text-slate-500 hover:text-slate-800 dark:hover:text-white text-sm font-bold flex items-center gap-2"
+                           >
+                               <RefreshCcw size={14}/> حساب سيناريو آخر
+                           </button>
+                       </div>
+                   )}
                </div>
            </div>
        )}

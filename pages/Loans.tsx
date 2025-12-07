@@ -4,7 +4,7 @@ import { Loan, LoanType, Bill, EntityLogo, Transaction, TransactionType, UserSet
 import { calculateLoanSchedule, calculateDurationInMonths } from '../services/loanCalculator';
 import { storageService } from '../services/storage';
 import { parseLoanDetailsFromText, parseBillFromPdf, parseLoanFromPdf } from '../services/geminiService';
-import { Plus, Trash2, CheckCircle, Calculator, FileText, UploadCloud, Calendar, Download, Loader2, AlertCircle, Sparkles, Wand2, X, Settings2, Edit3, ListChecks, RefreshCcw, Copy, Zap, Droplet, Wifi, Smartphone, Landmark, Receipt, Clock, Coins, Eye, TrendingDown, Hourglass, Archive, RotateCw, PlayCircle, Save, Image as ImageIcon, ChevronRight, CreditCard, RotateCcw, ArrowDown } from 'lucide-react';
+import { Plus, Trash2, CheckCircle, Calculator, FileText, UploadCloud, Calendar, Download, Loader2, AlertCircle, Sparkles, Wand2, X, Settings2, Edit3, ListChecks, RefreshCcw, Copy, Zap, Droplet, Wifi, Smartphone, Landmark, Receipt, Clock, Coins, Eye, TrendingDown, Hourglass, Archive, RotateCw, PlayCircle, Save, Image as ImageIcon, ChevronRight, CreditCard, RotateCcw, ArrowDown, CheckSquare, Square } from 'lucide-react';
 import { useNotification } from '../contexts/NotificationContext';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -74,12 +74,15 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
   const [showSettlementCalc, setShowSettlementCalc] = useState(false);
   const [showRefinanceCalc, setShowRefinanceCalc] = useState(false);
 
+  // Bulk Payment State
+  const [selectedScheduleItems, setSelectedScheduleItems] = useState<string[]>([]); // Array of Date strings
+
   // Payment Modal State
   const [paymentModal, setPaymentModal] = useState<{
       isOpen: boolean;
-      type: 'loan' | 'bill' | 'refund'; // Added refund type
+      type: 'loan' | 'bill' | 'refund' | 'bulk'; // Added bulk
       item: any; // Loan or Bill
-      scheduleItem?: any; // For Loans
+      scheduleItem?: any; // For Loans/Bills single payment
       amount: number;
       title: string;
       date: string;
@@ -163,6 +166,13 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
       customSchedule: undefined,
       icon: ''
   });
+
+  // Clear selections when closing modals
+  useEffect(() => {
+      if (!selectedLoan && !selectedBill) {
+          setSelectedScheduleItems([]);
+      }
+  }, [selectedLoan, selectedBill]);
 
   // Helper to find logo with robust matching (User Input <-> Stored Name)
   const findMatchingLogo = (query: string): EntityLogo | undefined => {
@@ -627,6 +637,44 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
       }
   };
 
+  const initiateBulkPayment = (type: 'loan' | 'bill', item: any) => {
+      if (selectedScheduleItems.length === 0) return;
+
+      // Calculate Total
+      let total = 0;
+      if (type === 'loan') {
+          const loan = item as Loan;
+          total = loan.schedule
+              .filter(s => selectedScheduleItems.includes(s.paymentDate) && !s.isPaid)
+              .reduce((sum, s) => sum + s.paymentAmount, 0);
+      } else {
+          const bill = item as Bill;
+          const schedule = getBillSchedule(bill);
+          total = schedule
+              .filter(s => selectedScheduleItems.includes(s.date.toISOString().split('T')[0]) && !s.isPaid)
+              .reduce((sum, s) => sum + s.amount, 0);
+      }
+      
+      if (total === 0) {
+          notify('العناصر المحددة مدفوعة بالفعل أو القيمة صفر', 'warning');
+          return;
+      }
+
+      setPaymentModal({
+          isOpen: true,
+          type: 'bulk',
+          item,
+          amount: total,
+          title: `سداد دفعات متعددة: ${item.name}`,
+          date: `${selectedScheduleItems.length} أقساط`
+      });
+      if (settings.cards.length > 0) {
+          setSelectedPaymentCardId(settings.cards[0].id);
+      } else {
+          setSelectedPaymentCardId('cash');
+      }
+  };
+
   const confirmPayment = async () => {
       setIsProcessing(true);
       try {
@@ -687,7 +735,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
               notify('تم التراجع عن السداد وتسجيل عملية استرداد', 'success');
 
           } else {
-              // --- Handle Payment ---
+              // --- Handle Payment (Single or Bulk) ---
               // 1. Deduct Balance (if card selected)
               if (selectedPaymentCardId !== 'cash') {
                   const cardIndex = settings.cards.findIndex(c => c.id === selectedPaymentCardId);
@@ -709,15 +757,50 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                   id: '',
                   amount: paymentModal.amount,
                   type: TransactionType.EXPENSE,
-                  category: paymentModal.type === 'loan' ? 'قروض' : 'فواتير وخدمات',
+                  category: paymentModal.type === 'loan' || paymentModal.type === 'bulk' ? 'قروض' : 'فواتير وخدمات',
                   date: new Date().toISOString(),
-                  note: `${paymentModal.title} (${paymentModal.date})`,
+                  note: paymentModal.type === 'bulk' ? `سداد مجمع (${selectedScheduleItems.length} أقساط) لـ ${paymentModal.item.name}` : `${paymentModal.title} (${paymentModal.date})`,
                   cardId: selectedPaymentCardId !== 'cash' ? selectedPaymentCardId : undefined
               };
               await storageService.saveTransaction(tx);
 
-              // 3. Update Item Status (Only for Loans needed to update DB schedule)
-              if (paymentModal.type === 'loan' && paymentModal.scheduleItem) {
+              // 3. Update Item Status (Bulk or Single)
+              
+              if (paymentModal.type === 'bulk') {
+                  // --- BULK UPDATE ---
+                  if (paymentModal.item.provider) {
+                      // Bill Bulk
+                      const bill = paymentModal.item as Bill;
+                      const currentPaid = bill.paidDates || [];
+                      // Add only unique dates
+                      const newPaid = [...new Set([...currentPaid, ...selectedScheduleItems])];
+                      bill.paidDates = newPaid;
+                      
+                      await storageService.updateBill(bill);
+                      setBills(await storageService.getBills());
+                      if (selectedBill?.id === bill.id) setSelectedBill({...bill});
+
+                  } else {
+                      // Loan Bulk
+                      const loan = paymentModal.item as Loan;
+                      let updatedCount = 0;
+                      loan.schedule.forEach(s => {
+                          if (selectedScheduleItems.includes(s.paymentDate) && !s.isPaid) {
+                              s.isPaid = true;
+                              updatedCount++;
+                          }
+                      });
+                      if (updatedCount > 0) {
+                          loan.status = loan.schedule.every(s => s.isPaid) ? 'completed' : 'active';
+                          await storageService.updateLoan(loan);
+                          const updatedLoans = await storageService.getLoans();
+                          setLoans(updatedLoans);
+                          if (selectedLoan?.id === loan.id) setSelectedLoan(updatedLoans.find(l=>l.id===loan.id) || null);
+                      }
+                  }
+                  setSelectedScheduleItems([]); // Clear selection after payment
+
+              } else if (paymentModal.type === 'loan' && paymentModal.scheduleItem) {
                   const loan = paymentModal.item as Loan;
                   const scheduleItem = paymentModal.scheduleItem;
                   
@@ -755,6 +838,26 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
           notify('حدث خطأ أثناء العملية', 'error');
       } finally {
           setIsProcessing(false);
+      }
+  };
+
+  // --- Bulk Selection Handlers ---
+  const toggleSelection = (dateStr: string) => {
+      setSelectedScheduleItems(prev => {
+          if (prev.includes(dateStr)) return prev.filter(d => d !== dateStr);
+          return [...prev, dateStr];
+      });
+  };
+
+  const selectAllUnpaid = (items: {dateStr: string, isPaid: boolean}[]) => {
+      const unpaidDates = items.filter(i => !i.isPaid).map(i => i.dateStr);
+      // If all unpaid are already selected, deselect all. Otherwise, select all unpaid.
+      const allSelected = unpaidDates.every(d => selectedScheduleItems.includes(d));
+      
+      if (allSelected) {
+          setSelectedScheduleItems([]);
+      } else {
+          setSelectedScheduleItems(unpaidDates);
       }
   };
   
@@ -1150,106 +1253,175 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                   const daysLeft = bill.endDate ? Math.ceil((new Date(bill.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : 999;
                   const isExpiringSoon = daysLeft < 30 && daysLeft > 0;
                   
-                  // --- NEW ACCURATE CALCULATION LOGIC ---
                   const paidCount = (bill.paidDates || []).length;
                   let monthsLeft = 0;
                   let estimatedRemaining = 0;
+                  let totalAmount = 0;
+                  let paidAmount = 0;
+                  let prog = 0;
 
-                  if (bill.durationMonths) {
-                      // Fixed Duration (Installments)
+                  // --- FINANCIAL PROGRESS LOGIC ---
+                  if (bill.durationMonths && bill.durationMonths > 0) {
                       monthsLeft = Math.max(0, bill.durationMonths - paidCount);
-
+                      
                       if (bill.totalDebt) {
-                          // If Total Debt is known: Remaining = Total - (DownPayment + (Monthly * PaidCount))
-                          // NOTE: If customSchedule exists, we could use that for precision, but totalDebt is already reliable if maintained correctly
-                          const totalPaid = (bill.downPayment || 0) + (bill.amount * paidCount); 
-                          // NOTE: Ideally we sum actual paid items from schedule for precision, but simple tracking works here
-                          estimatedRemaining = Math.max(0, bill.totalDebt - totalPaid);
+                          totalAmount = bill.totalDebt;
+                          paidAmount = (bill.downPayment || 0) + (bill.amount * paidCount);
+                          if (paidAmount > totalAmount) paidAmount = totalAmount;
+                          estimatedRemaining = Math.max(0, totalAmount - paidAmount);
                       } else {
-                          // Fallback: Remaining = MonthsLeft * MonthlyAmount
-                          estimatedRemaining = monthsLeft * bill.amount;
+                          totalAmount = bill.amount * bill.durationMonths;
+                          // Simple Estimate
+                          paidAmount = (bill.amount * paidCount);
+                          if(bill.downPayment) {
+                               paidAmount += bill.downPayment;
+                               totalAmount += bill.downPayment; // Adjust total if downpayment wasn't part of monthly calc
+                          }
+                          estimatedRemaining = Math.max(0, totalAmount - paidAmount);
+                      }
+                      
+                      if (totalAmount > 0) prog = (paidAmount / totalAmount) * 100;
+                  } else if (bill.endDate) {
+                      // Date based progress (Time elapsed)
+                      const totalDaysLeft = Math.ceil((new Date(bill.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                      monthsLeft = Math.max(0, Math.ceil(totalDaysLeft / 30));
+                      estimatedRemaining = monthsLeft * bill.amount;
+                      
+                      // Progress bar based on TIME
+                      if (bill.startDate) {
+                          const start = new Date(bill.startDate).getTime();
+                          const end = new Date(bill.endDate).getTime();
+                          const now = new Date().getTime();
+                          const totalDuration = end - start;
+                          const elapsed = now - start;
+                          prog = Math.min(100, Math.max(0, (elapsed / totalDuration) * 100));
+                          
+                          // Estimate financial total based on time
+                          const totalMonths = Math.ceil(totalDuration / (1000 * 60 * 60 * 24 * 30));
+                          totalAmount = totalMonths * bill.amount;
+                          paidAmount = (totalMonths - monthsLeft) * bill.amount;
+                      } else {
+                          // No start date, just end date. Can't show progress bar accurately.
+                          totalAmount = estimatedRemaining; // Just show what's left
                       }
                   } else {
-                      // Ongoing or Date-based only
-                      const calendarMonthsLeft = daysLeft > 0 ? Math.ceil(daysLeft / 30) : 0;
-                      monthsLeft = calendarMonthsLeft;
-                      estimatedRemaining = calendarMonthsLeft * bill.amount;
+                      // Ongoing (Utility/Sub)
+                      estimatedRemaining = bill.amount;
+                      totalAmount = bill.amount; // For display purposes
                   }
 
+                  // --- NEXT PAYMENT DATE LOGIC ---
+                  let nextPaymentDateStr = '-';
+                  if (bill.customSchedule && bill.customSchedule.length > 0) {
+                      // Sort by date just in case
+                      const sorted = [...bill.customSchedule].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+                      const next = sorted.find(s => !(bill.paidDates || []).includes(s.date) && new Date(s.date) >= new Date(new Date().setHours(0,0,0,0)));
+                      const firstUnpaid = sorted.find(s => !(bill.paidDates || []).includes(s.date));
+                      
+                      if (next) nextPaymentDateStr = new Date(next.date).toLocaleDateString('en-GB');
+                      else if (firstUnpaid) nextPaymentDateStr = new Date(firstUnpaid.date).toLocaleDateString('en-GB') + ' (متأخر)';
+                      else nextPaymentDateStr = 'مكتمل';
+                  } else {
+                      let day = 1;
+                      if (bill.startDate) day = new Date(bill.startDate).getDate();
+                      else if (bill.renewalDate) day = new Date(bill.renewalDate).getDate();
+                      
+                      const today = new Date();
+                      let targetDate = new Date(today.getFullYear(), today.getMonth(), day);
+                      if (targetDate < new Date(new Date().setHours(0,0,0,0))) {
+                          targetDate.setMonth(targetDate.getMonth() + 1);
+                      }
+                      nextPaymentDateStr = targetDate.toLocaleDateString('en-GB');
+                  }
+
+                  let statusLabel = bill.status === 'active' ? 'نشط' : 'مؤرشف';
+                  let statusColor = bill.status === 'active' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-slate-100 text-slate-500';
+
+                  if (bill.status === 'active' && bill.durationMonths && monthsLeft === 0) {
+                      statusLabel = 'مكتمل';
+                      statusColor = 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400';
+                  }
+
+                  const borderClass = isExpiringSoon ? 'border-amber-400 ring-1 ring-amber-400' : (selectedBill?.id === bill.id ? 'border-emerald-500 ring-1' : 'border-slate-100 dark:border-slate-800');
+
                   return (
-                  <div key={bill.id} onClick={() => setSelectedBill(bill)} className={`bg-white dark:bg-slate-900 p-5 rounded-2xl border shadow-sm relative group hover:shadow-md transition-all cursor-pointer ${bill.status === 'archived' ? 'opacity-60 grayscale' : ''} ${isExpiringSoon ? 'border-amber-400 ring-1 ring-amber-400' : 'border-slate-100 dark:border-slate-800'}`}>
-                      {/* Updated Bill Card Header with Icon on Right & Light Bg in Dark Mode */}
+                  <div key={bill.id} onClick={() => setSelectedBill(bill)} className={`bg-white dark:bg-slate-900 p-5 rounded-2xl shadow-sm border cursor-pointer hover:shadow-md transition-shadow ${borderClass} ${bill.status === 'archived' ? 'opacity-60 grayscale' : ''}`}>
+                      
+                      {/* Header */}
                       <div className="flex items-center gap-4 mb-4">
-                          <div className="w-14 h-14 rounded-2xl bg-slate-50 dark:bg-white flex items-center justify-center border border-slate-100 dark:border-slate-300 shadow-sm shrink-0 overflow-hidden">
+                          <div className="w-16 h-16 rounded-2xl bg-slate-50 dark:bg-white flex items-center justify-center border border-slate-100 dark:border-slate-300 shadow-sm shrink-0 overflow-hidden">
                               {getBillIcon(bill.type, bill.provider, bill.icon)}
                           </div>
-                          <div>
-                              <h4 className="font-bold text-base text-slate-900 dark:text-white">{bill.name}</h4>
-                              <p className="text-xs text-slate-400">{bill.provider}</p>
+                          <div className="flex-1 min-w-0">
+                              <div className="flex justify-between items-start">
+                                  <h3 className="font-bold text-lg text-slate-800 dark:text-white truncate">{bill.name}</h3>
+                                  <span className={`text-[10px] px-2 py-1 rounded-full ${statusColor}`}>{statusLabel}</span>
+                              </div>
+                              <p className="text-xs text-slate-400 truncate">{bill.provider}</p>
                           </div>
                       </div>
 
-                      <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl mb-3 border border-slate-100 dark:border-slate-700">
-                          <span className="text-xs text-slate-500 dark:text-slate-400">القسط الشهري</span>
-                          <span className="font-bold text-xl text-slate-900 dark:text-white">{bill.amount.toFixed(2)}</span>
-                      </div>
-                      
-                      <div className="space-y-2 pt-2 border-t border-slate-50 dark:border-slate-800">
-                          {(bill.startDate || bill.endDate) && (
-                              <div className="flex justify-between text-[10px] text-slate-500 dark:text-slate-400">
-                                  {bill.startDate && <span>البداية: {new Date(bill.startDate).toLocaleDateString('en-GB')}</span>}
-                                  {bill.endDate && <span>النهاية: {new Date(bill.endDate).toLocaleDateString('en-GB')}</span>}
-                              </div>
-                          )}
-                          {bill.durationMonths && (
-                              <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                                  <Clock size={12}/>
-                                  <span>المدة: {bill.durationMonths} شهر</span>
-                              </div>
-                          )}
-                          {bill.deviceDetails && (
-                              <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                                  <Smartphone size={12}/>
-                                  <span>{bill.deviceDetails}</span>
-                              </div>
-                          )}
-                      </div>
-
-                      {/* Remaining Months Badge for Bills */}
-                      {(bill.endDate || bill.durationMonths) && monthsLeft > 0 && monthsLeft < 999 && (
-                          <div className="mt-3 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 rounded-lg p-2 flex flex-col gap-1 items-center justify-center text-center">
-                              <div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-300 font-bold text-xs">
-                                <Hourglass size={14} />
-                                <span>متبقي {monthsLeft} شهر (فعلي)</span>
-                              </div>
-                              {estimatedRemaining > 0 && (
-                                  <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
-                                      المتبقي المتوقع: <span className="text-rose-500 dark:text-rose-400">{estimatedRemaining.toLocaleString('en-US')}</span>
-                                  </div>
-                              )}
+                      {/* Progress Bar (Only if duration/contract exists) */}
+                      {(bill.durationMonths || bill.endDate) ? (
+                          <div className="w-full bg-slate-100 dark:bg-slate-800 h-2.5 rounded-full mb-3 overflow-hidden">
+                              <div className="bg-emerald-500 h-full rounded-full transition-all duration-500" style={{width: `${prog}%`}}></div>
                           </div>
+                      ) : (
+                          <div className="w-full h-2.5 mb-3"></div> // Spacer
                       )}
                       
-                      {/* Completed Status Badge */}
-                      {monthsLeft === 0 && (bill.durationMonths || bill.endDate) && (
-                           <div className="mt-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 rounded-lg p-2 flex items-center justify-center gap-1 text-emerald-700 dark:text-emerald-300 font-bold text-xs">
-                               <CheckCircle size={14}/>
-                               <span>مكتمل السداد</span>
-                           </div>
+                      {/* Stats */}
+                      <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 mb-4">
+                          <div>
+                              <span className="block mb-0.5">{(bill.durationMonths || bill.totalDebt) ? 'القيمة / المدفوع' : 'القسط الشهري'}</span>
+                              <span className="font-bold text-slate-700 dark:text-slate-300 text-sm">
+                                 {(bill.durationMonths || bill.totalDebt) ? paidAmount.toLocaleString('en-US') : bill.amount.toLocaleString('en-US')}
+                              </span>
+                          </div>
+                          <div className="text-left">
+                              <span className="block mb-0.5">{(bill.durationMonths || bill.totalDebt) ? 'المتبقي (دين)' : 'المتوقع (متبقي)'}</span>
+                              <span className="font-bold text-rose-600 dark:text-rose-400 text-sm">
+                                  {estimatedRemaining.toLocaleString('en-US')}
+                              </span>
+                          </div>
+                      </div>
+                      
+                      {/* Next Payment Grid */}
+                      <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-3 grid grid-cols-2 gap-3 text-xs mb-3 border border-slate-100 dark:border-slate-700">
+                              <div>
+                              <span className="block text-slate-400 mb-1">القسط القادم</span>
+                              <span className="font-bold text-base text-slate-800 dark:text-white">
+                                  {bill.amount.toLocaleString('en-US')}
+                              </span>
+                              </div>
+                              <div className="text-left border-r border-slate-200 dark:border-slate-700 pr-3">
+                              <span className="block text-slate-400 mb-1">يستحق في</span>
+                              <span className="font-bold text-slate-800 dark:text-white">
+                                  {nextPaymentDateStr}
+                              </span>
+                              </div>
+                      </div>
+                      
+                      {/* Bottom Badge */}
+                      {(bill.durationMonths || (monthsLeft > 0 && monthsLeft < 999)) ? (
+                          <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 rounded-lg p-2 flex items-center justify-center gap-2 text-indigo-700 dark:text-indigo-300 font-bold text-sm">
+                              <Hourglass size={16} />
+                              <span>متبقي {monthsLeft} شهر</span>
+                          </div>
+                      ) : (
+                          <div className="bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-lg p-2 flex items-center justify-center gap-2 text-slate-500 font-bold text-sm">
+                              <Calendar size={16} />
+                              <span>دوري / مستمر</span>
+                          </div>
                       )}
 
                       {isExpiringSoon && (
-                          <div className="mt-3 text-xs text-amber-600 dark:text-amber-400 font-bold bg-amber-50 dark:bg-amber-900/20 p-2 rounded flex items-center gap-1">
-                              <AlertCircle size={12}/>
+                          <div className="mt-2 text-[10px] text-amber-600 dark:text-amber-400 font-bold text-center">
                               ينتهي العقد خلال {daysLeft} يوم!
                           </div>
                       )}
-                      {bill.renewalDate && (
-                          <div className="mt-3 text-xs text-purple-600 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/20 p-2 rounded flex items-center gap-1">
-                              <Calendar size={12}/>
-                              تجديد: {new Date(bill.renewalDate).toLocaleDateString('en-GB')}
-                          </div>
-                      )}
+
+                      <button onClick={(e)=>{e.stopPropagation(); setSelectedBill(bill)}} className="w-full mt-3 text-xs bg-white border border-slate-200 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 py-2.5 rounded-lg font-bold hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">عرض التفاصيل</button>
                   </div>
               )})}
           </div>
@@ -1300,10 +1472,31 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
 
                     <div className="p-4">
                         <h4 className="font-bold text-sm text-slate-500 dark:text-slate-400 mb-3 flex items-center gap-2"><ListChecks size={16}/> جدول السداد</h4>
+                        
+                        {/* Bulk Action Bar (Floating) */}
+                        {selectedScheduleItems.length > 0 && (
+                            <div className="sticky top-0 z-10 bg-indigo-600 text-white p-3 rounded-xl mb-3 flex items-center justify-between shadow-lg animate-slide-up">
+                                <div className="text-sm font-bold">
+                                    تم تحديد {selectedScheduleItems.length} أقساط
+                                </div>
+                                <button 
+                                    onClick={() => initiateBulkPayment('loan', selectedLoan)}
+                                    className="bg-white text-indigo-700 px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-indigo-50"
+                                >
+                                    سداد الكل
+                                </button>
+                            </div>
+                        )}
+
                         <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
                             <table className="w-full text-sm text-left rtl:text-right text-slate-500 dark:text-slate-400">
                                 <thead className="text-xs text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800">
                                     <tr>
+                                        <th className="px-4 py-3 w-10">
+                                            <button onClick={() => selectAllUnpaid(selectedLoan.schedule.map(s => ({dateStr: s.paymentDate, isPaid: s.isPaid})))} className="flex items-center justify-center">
+                                                {selectedLoan.schedule.some(s => !s.isPaid && selectedScheduleItems.includes(s.paymentDate)) ? <CheckSquare size={16} className="text-indigo-600"/> : <Square size={16} />}
+                                            </button>
+                                        </th>
                                         <th className="px-4 py-3">#</th>
                                         <th className="px-4 py-3">التاريخ</th>
                                         <th className="px-4 py-3">المبلغ</th>
@@ -1312,7 +1505,14 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                                 </thead>
                                 <tbody>
                                     {selectedLoan.schedule.map((item, idx) => (
-                                        <tr key={idx} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
+                                        <tr key={idx} className={`border-b border-slate-100 dark:border-slate-800 last:border-0 ${selectedScheduleItems.includes(item.paymentDate) ? 'bg-indigo-50 dark:bg-indigo-900/20' : ''}`}>
+                                            <td className="px-4 py-3">
+                                                {!item.isPaid && (
+                                                    <button onClick={() => toggleSelection(item.paymentDate)} className="text-slate-400 hover:text-indigo-600">
+                                                        {selectedScheduleItems.includes(item.paymentDate) ? <CheckSquare size={16} className="text-indigo-600"/> : <Square size={16}/>}
+                                                    </button>
+                                                )}
+                                            </td>
                                             <td className="px-4 py-3 font-medium">{idx + 1}</td>
                                             <td className="px-4 py-3 whitespace-nowrap">
                                                 {new Date(item.paymentDate).toLocaleDateString('en-GB')}
@@ -1409,10 +1609,31 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
 
                     <div className="p-4">
                         <h4 className="font-bold text-sm text-slate-500 dark:text-slate-400 mb-3 flex items-center gap-2"><ListChecks size={16}/> جدول الدفعات / السداد</h4>
+                        
+                         {/* Bulk Action Bar (Floating) for Bills */}
+                        {selectedScheduleItems.length > 0 && (
+                            <div className="sticky top-0 z-10 bg-indigo-600 text-white p-3 rounded-xl mb-3 flex items-center justify-between shadow-lg animate-slide-up">
+                                <div className="text-sm font-bold">
+                                    تم تحديد {selectedScheduleItems.length} فواتير
+                                </div>
+                                <button 
+                                    onClick={() => initiateBulkPayment('bill', selectedBill)}
+                                    className="bg-white text-indigo-700 px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-indigo-50"
+                                >
+                                    سداد الكل
+                                </button>
+                            </div>
+                        )}
+
                         <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
                             <table className="w-full text-sm text-left rtl:text-right text-slate-500 dark:text-slate-400">
                                 <thead className="text-xs text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800">
                                     <tr>
+                                        <th className="px-4 py-3 w-10">
+                                            <button onClick={() => selectAllUnpaid(getBillSchedule(selectedBill).map(s => ({dateStr: s.date.toISOString().split('T')[0], isPaid: s.isPaid})))} className="flex items-center justify-center">
+                                                {getBillSchedule(selectedBill).some(s => !s.isPaid && selectedScheduleItems.includes(s.date.toISOString().split('T')[0])) ? <CheckSquare size={16} className="text-indigo-600"/> : <Square size={16} />}
+                                            </button>
+                                        </th>
                                         <th className="px-4 py-3">التاريخ</th>
                                         <th className="px-4 py-3">المبلغ</th>
                                         <th className="px-4 py-3">الحالة / إجراء</th>
@@ -1420,7 +1641,14 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                                 </thead>
                                 <tbody>
                                     {getBillSchedule(selectedBill).map((item, idx) => (
-                                        <tr key={idx} className={`border-b border-slate-100 dark:border-slate-800 last:border-0 ${item.type === 'down_payment' ? 'bg-indigo-50/50 dark:bg-indigo-900/10' : ''}`}>
+                                        <tr key={idx} className={`border-b border-slate-100 dark:border-slate-800 last:border-0 ${item.type === 'down_payment' ? 'bg-indigo-50/50 dark:bg-indigo-900/10' : ''} ${selectedScheduleItems.includes(item.date.toISOString().split('T')[0]) ? 'bg-indigo-50 dark:bg-indigo-900/20' : ''}`}>
+                                            <td className="px-4 py-3">
+                                                {!item.isPaid && (
+                                                    <button onClick={() => toggleSelection(item.date.toISOString().split('T')[0])} className="text-slate-400 hover:text-indigo-600">
+                                                        {selectedScheduleItems.includes(item.date.toISOString().split('T')[0]) ? <CheckSquare size={16} className="text-indigo-600"/> : <Square size={16}/>}
+                                                    </button>
+                                                )}
+                                            </td>
                                             <td className="px-4 py-3 whitespace-nowrap">
                                                 {item.type === 'down_payment' && <span className="text-xs text-indigo-500 block">دفعة أولى</span>}
                                                 {new Date(item.date).toLocaleDateString('en-GB')}
