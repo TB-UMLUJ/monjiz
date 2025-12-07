@@ -44,12 +44,17 @@ export interface Loan {
   icon?: string; // New: Custom icon
 }
 
+export interface BillScheduleItem {
+    date: string;
+    amount: number;
+}
+
 export interface Bill {
   id: string;
   name: string;
   provider: string;
   type: 'electricity' | 'water' | 'internet' | 'device_installment' | 'subscription' | 'other';
-  amount: number;
+  amount: number; // Monthly Payment Amount
   hasEndDate: boolean;
   endDate?: string;
   deviceDetails?: string; 
@@ -57,10 +62,13 @@ export interface Bill {
   durationMonths?: number; 
   lastPaymentAmount?: number;
   downPayment?: number;
+  totalDebt?: number; // New: Total Contract Value / Total Debt
   isSubscription?: boolean; // New: For Netflix, etc.
   renewalDate?: string; // New: For subscriptions
   status: 'active' | 'archived'; // New: Archive support
   icon?: string; // New: Custom icon
+  paidDates?: string[]; // New: Track individual paid installments (ISO Date Strings)
+  customSchedule?: BillScheduleItem[]; // New: Custom schedule for variable monthly amounts
 }
 
 export interface RecurringTransaction {

@@ -1,4 +1,3 @@
-
 import { GoogleGenAI } from "@google/genai";
 import { Transaction, Loan, TransactionType, LoanType } from "../types";
 
@@ -84,6 +83,7 @@ export interface ParsedSMS {
   date: string;
   type: TransactionType;
   fee?: number;
+  newBalance?: number; // Added to support balance update from SMS
 }
 
 export const parseTransactionFromSMS = async (smsText: string): Promise<ParsedSMS | null> => {
@@ -97,16 +97,20 @@ export const parseTransactionFromSMS = async (smsText: string): Promise<ParsedSM
       Text: "${smsText}"
       
       Rules:
-      1. Determine 'type': "expense" for purchases, payments, or outgoing transfers (like "صادرة"). "income" for deposits, salary, or incoming transfers (like "واردة").
-      2. Extract 'amount' as a number (remove currency symbols). This is the main transaction amount.
-      3. Extract 'merchant' or the other party's name (e.g., NAFTHAH A, نهله السناني).
+      1. Determine 'type': 
+         - "expense" for purchases, payments, or outgoing transfers (like "صادرة", "شراء").
+         - "income" for deposits, salary, incoming transfers (like "واردة").
+         - **CRITICAL**: If the text contains "Credit Card Payment", "بطاقة ائتمانية:سداد", or "سداد بطاقة", classify it as **"income"** (because it restores the credit limit/balance of the card).
+      2. Extract 'amount' as a number (remove currency symbols).
+      3. Extract 'merchant' or the other party's name. 
+         - If it's a credit card payment, set merchant to "Credit Card Payment" or "سداد بطاقة".
       4. Extract 'cardLast4': 
-         - If 'type' is "expense", this is the 4 digits of the user's card, usually after "من:" (from) or "Card:".
-         - If 'type' is "income", this is the 4 digits of the user's card, usually after "الى:" (to).
-         - It must be the user's card, not the other party's.
-      5. Extract 'date' and convert to ISO string (YYYY-MM-DDTHH:mm:ss.sssZ).
-      6. Guess 'category' from this list: ['طعام', 'نقل', 'سكن', 'فواتير وخدمات', 'تسوق', 'ترفيه', 'صحة', 'تعليم', 'راتب', 'استثمار', 'تحويل بنكي', 'استلام أموال', 'رسوم بنكية', 'أخرى']. For incoming transfers, use 'استلام أموال'.
-      7. Extract 'fee' if present (look for "الرسوم" or "fee"). It must be a number. If not found, omit or set to 0.
+         - Look for digits after "من:", "الى:", "Card:", "بطاقة:", or "فيزا".
+      5. Extract 'date' and convert to ISO string.
+      6. Guess 'category'. If it's a card repayment, use 'سداد بطاقة'.
+      7. Extract 'fee' if present.
+      8. Extract 'newBalance' if present (look for "رصيد:", "Balance:", "Avail Bal"). This is the account balance AFTER the transaction.
+         Example: "رصيد:367.69" -> newBalance: 367.69
       
       Return JSON only.
     `;
@@ -184,6 +188,60 @@ export const parseLoanDetailsFromText = async (text: string): Promise<ParsedLoan
         console.error("Gemini Loan Parse Error", error);
         return null;
     }
+};
+
+export const parseLoanFromPdf = async (base64Data: string): Promise<ParsedLoan | null> => {
+  try {
+    if (!API_KEY) throw new Error("API Key missing");
+    const ai = new GoogleGenAI({ apiKey: API_KEY });
+
+    // Remove Data URL prefix if present
+    const cleanBase64 = base64Data.split(',')[1] || base64Data;
+
+    const prompt = `
+      Analyze this loan contract or payment schedule PDF/Image (e.g., Tabby, Tamara, Bank Contract) and extract details into JSON.
+
+      Required Fields (null if not found):
+      - principal: (Original loan amount / مبلغ التمويل)
+      - totalAmount: (Total to be paid including fees/profit / الإجمالي)
+      - interestRate: (Annual rate / معدل النسبة السنوي, or calculate from profit)
+      - durationMonths: (Number of installments / عدد الأقساط)
+      - startDate: (First payment date / تاريخ أول دفعة - YYYY-MM-DD)
+      - monthlyPayment: (Installment amount / قسط شهري)
+      - paidInstallments: (Count of paid installments if visible / الأقساط المدفوعة)
+      - lenderName: (Provider name e.g. Tabby, Tamara, Al Rajhi)
+      - lastPaymentAmount: (If different)
+
+      Notes:
+      - For BNPL (Tabby/Tamara), usually there is no interest (rate=0), but check for service fees.
+      - If "Down Payment" exists, consider it paid.
+    `;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: [
+        {
+          inlineData: {
+            mimeType: 'application/pdf', 
+            data: cleanBase64
+          }
+        },
+        { text: prompt }
+      ],
+      config: {
+        responseMimeType: 'application/json'
+      }
+    });
+
+    const text = response.text;
+    if (!text) return null;
+
+    return JSON.parse(text) as ParsedLoan;
+
+  } catch (error) {
+    console.error("Gemini Loan PDF Parse Error", error);
+    return null;
+  }
 };
 
 export interface ParsedBill {

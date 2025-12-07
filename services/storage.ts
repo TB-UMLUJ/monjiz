@@ -327,7 +327,10 @@ export const storageService = {
           isSubscription: b.is_subscription,
           renewalDate: b.renewal_date,
           status: b.status || 'active',
-          icon: b.icon
+          icon: b.icon,
+          totalDebt: b.total_debt ? Number(b.total_debt) : undefined,
+          paidDates: b.paid_dates || [],
+          customSchedule: b.custom_schedule || []
       }));
   },
 
@@ -348,7 +351,10 @@ export const storageService = {
           is_subscription: bill.isSubscription,
           renewal_date: safeDate(bill.renewalDate),
           status: bill.status || 'active',
-          icon: bill.icon
+          icon: bill.icon,
+          total_debt: bill.totalDebt ? safeNumber(bill.totalDebt) : null,
+          paid_dates: bill.paidDates || [],
+          custom_schedule: bill.customSchedule || []
       });
 
       if (error) throw error;
@@ -371,7 +377,10 @@ export const storageService = {
           is_subscription: bill.isSubscription,
           renewal_date: safeDate(bill.renewalDate),
           status: bill.status,
-          icon: bill.icon
+          icon: bill.icon,
+          total_debt: bill.totalDebt ? safeNumber(bill.totalDebt) : null,
+          paid_dates: bill.paidDates || [],
+          custom_schedule: bill.customSchedule || []
       }).eq('id', bill.id);
 
       if (error) throw error;
@@ -513,7 +522,7 @@ export const storageService = {
                     cardType: c.card_type,
                     color: c.color,
                     balance: Number(c.balance),
-                    logoUrl: c.logo_url || mappedLogo, 
+                    logo_url: c.logo_url || mappedLogo, 
                     logoPosition: c.logo_position || 'top-left'
                 };
             }),
@@ -649,14 +658,9 @@ export const storageService = {
           for (const income of settings.incomeSources) {
               if (currentDay >= income.dayOfMonth) {
                   // Check if transaction already exists for this month/year for this income
-                  // We look for a transaction with category='راتب' (or specific) and the specific note pattern
-                  // Or better, we query transactions in current month range
                   
                   const startOfMonth = new Date(currentYear, currentMonth, 1).toISOString();
                   const endOfMonth = new Date(currentYear, currentMonth + 1, 0).toISOString();
-                  
-                  // Note: Supabase filtering on json/note is tricky if note is free text.
-                  // We'll rely on a specific note format: "إيداع تلقائي: [Income Name]"
                   
                   const { data: existingTx } = await supabase
                       .from('transactions')
@@ -665,7 +669,7 @@ export const storageService = {
                       .eq('type', 'income')
                       .gte('date', startOfMonth)
                       .lte('date', endOfMonth)
-                      .ilike('note', `%${income.name}%`) // Basic check
+                      .ilike('note', `%${income.name}%`) 
                       .limit(1);
                   
                   if (!existingTx || existingTx.length === 0) {
@@ -676,7 +680,7 @@ export const storageService = {
                           type: TransactionType.INCOME,
                           category: 'راتب',
                           date: today.toISOString(),
-                          note: `من: ${income.name}`, // Changed from 'إيداع تلقائي:' to 'من:'
+                          note: `من: ${income.name}`, // Standardized to "From:" as requested
                           cardId: settings.cards.length > 0 ? settings.cards[0].id : undefined // Default to first card
                       };
                       await storageService.saveTransaction(tx);

@@ -279,10 +279,19 @@ const Dashboard: React.FC<DashboardProps> = ({
       };
 
       // 4. Update Balance
-      const currentBalance = targetCard.balance || 0;
-      const newBalance = parsedData.type === TransactionType.EXPENSE 
-        ? currentBalance - parsedData.amount 
-        : currentBalance + parsedData.amount;
+      let newBalance = targetCard.balance || 0;
+
+      if (parsedData.newBalance !== undefined) {
+         // Use the balance directly from SMS
+         newBalance = parsedData.newBalance;
+      } else {
+         // Fallback calculation
+         if (parsedData.type === TransactionType.EXPENSE) {
+             newBalance -= parsedData.amount;
+         } else {
+             newBalance += parsedData.amount;
+         }
+      }
 
       const updatedCards = [...settings.cards];
       updatedCards[targetCardIndex] = { ...targetCard, balance: newBalance };
@@ -298,7 +307,11 @@ const Dashboard: React.FC<DashboardProps> = ({
       const freshTransactions = await storageService.getTransactions();
       setTransactions(freshTransactions);
 
-      notify(`تم إضافة العملية "${parsedData.merchant}" بقيمة ${parsedData.amount} بنجاح`, 'success');
+      let successMessage = `تم إضافة العملية "${parsedData.merchant}" بنجاح`;
+      if (parsedData.newBalance !== undefined) {
+          successMessage += ` وتحديث الرصيد إلى ${parsedData.newBalance}`;
+      }
+      notify(successMessage, 'success');
       setModalConfig({ ...modalConfig, isOpen: false });
 
     } catch (err) {
@@ -604,14 +617,14 @@ const Dashboard: React.FC<DashboardProps> = ({
                       <div className="bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-xl mb-4 border border-indigo-100 dark:border-indigo-900/30">
                         <p className="text-xs text-indigo-600 dark:text-indigo-400 mb-2 flex items-center gap-1">
                           <Wand2 size={12}/>
-                          ألصق رسالة البنك هنا، وسيقوم النظام بتصنيفها وخصمها تلقائياً.
+                          ألصق رسالة البنك هنا، وسيقوم النظام بتصنيفها وتحديث الرصيد تلقائياً.
                         </p>
                         <textarea
                           autoFocus
                           value={smsText}
                           onChange={e => setSmsText(e.target.value)}
                           className="w-full bg-white dark:bg-slate-800 border border-indigo-200 dark:border-slate-700 rounded-lg p-3 text-sm min-h-[100px] outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white"
-                          placeholder="مثال: شراء بطاقة:7359 مبلغ:SAR 24 لدى:NAFTHAH..."
+                          placeholder="مثال: بطاقة ائتمانية:سداد مبلغ:320 رصيد:367.69..."
                         />
                       </div>
                       <button 

@@ -1,9 +1,10 @@
+
 import React, { useState, useEffect, useRef } from 'react';
-import { Loan, LoanType, Bill, EntityLogo, Transaction, TransactionType, UserSettings } from '../types';
+import { Loan, LoanType, Bill, EntityLogo, Transaction, TransactionType, UserSettings, BillScheduleItem } from '../types';
 import { calculateLoanSchedule, calculateDurationInMonths } from '../services/loanCalculator';
 import { storageService } from '../services/storage';
-import { parseLoanDetailsFromText, parseBillFromPdf } from '../services/geminiService';
-import { Plus, Trash2, CheckCircle, Calculator, FileText, UploadCloud, Calendar, Download, Loader2, AlertCircle, Sparkles, Wand2, X, Settings2, Edit3, ListChecks, RefreshCcw, Copy, Zap, Droplet, Wifi, Smartphone, Landmark, Receipt, Clock, Coins, Eye, TrendingDown, Hourglass, Archive, RotateCw, PlayCircle, Save, Image as ImageIcon, ChevronRight, CreditCard } from 'lucide-react';
+import { parseLoanDetailsFromText, parseBillFromPdf, parseLoanFromPdf } from '../services/geminiService';
+import { Plus, Trash2, CheckCircle, Calculator, FileText, UploadCloud, Calendar, Download, Loader2, AlertCircle, Sparkles, Wand2, X, Settings2, Edit3, ListChecks, RefreshCcw, Copy, Zap, Droplet, Wifi, Smartphone, Landmark, Receipt, Clock, Coins, Eye, TrendingDown, Hourglass, Archive, RotateCw, PlayCircle, Save, Image as ImageIcon, ChevronRight, CreditCard, RotateCcw, ArrowDown } from 'lucide-react';
 import { useNotification } from '../contexts/NotificationContext';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -65,6 +66,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
   const [showAddModal, setShowAddModal] = useState(false);
   const [showSmartModal, setShowSmartModal] = useState(false);
   const [showScheduleEditor, setShowScheduleEditor] = useState(false); 
+  const [scheduleEditorMode, setScheduleEditorMode] = useState<'loan' | 'bill'>('loan');
   const [showAddBillModal, setShowAddBillModal] = useState(false); 
   const [selectedBill, setSelectedBill] = useState<Bill | null>(null); // New state for bill details
 
@@ -75,7 +77,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
   // Payment Modal State
   const [paymentModal, setPaymentModal] = useState<{
       isOpen: boolean;
-      type: 'loan' | 'bill';
+      type: 'loan' | 'bill' | 'refund'; // Added refund type
       item: any; // Loan or Bill
       scheduleItem?: any; // For Loans
       amount: number;
@@ -129,7 +131,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
   const [newBill, setNewBill] = useState<{
       provider: string;
       type: 'electricity' | 'water' | 'internet' | 'device_installment' | 'subscription' | 'other';
-      amount: string;
+      amount: string; // This is monthly amount
       hasEndDate: boolean;
       endDate: string;
       deviceDetails: string;
@@ -137,9 +139,12 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
       duration: string;
       lastAmount: string;
       downPayment: string;
+      totalDebt: string; // New field for total debt
       endDateMode: 'date' | 'months';
       isSubscription: boolean;
       renewalDate: string;
+      customSchedule?: BillScheduleItem[]; // New: For custom bill schedule
+      icon: string; // New: To store auto-detected or manually set icon
   }>({
       provider: '',
       type: 'electricity',
@@ -151,10 +156,40 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
       duration: '',
       lastAmount: '',
       downPayment: '',
+      totalDebt: '',
       endDateMode: 'months',
       isSubscription: false,
       renewalDate: '',
+      customSchedule: undefined,
+      icon: ''
   });
+
+  // Helper to find logo with robust matching (User Input <-> Stored Name)
+  const findMatchingLogo = (query: string): EntityLogo | undefined => {
+      if (!query) return undefined;
+      const q = query.trim().toLowerCase();
+      return knownLogos.find(l => {
+          const n = l.name.trim().toLowerCase();
+          // Check if query contains name OR name contains query (e.g. "Tabby" in "Tabby Installment" OR "Al Rajhi" in "Rajhi")
+          return q.includes(n) || n.includes(q);
+      });
+  };
+
+  // Auto-calculate Total Debt for Bill when Amount/Duration changes
+  useEffect(() => {
+      // Only auto-calc if NOT editing a bill that already has a custom schedule (to prevent overwrite)
+      // And only if type is installment
+      if (!editingBillId && newBill.type === 'device_installment' && (!newBill.customSchedule || newBill.customSchedule.length === 0)) {
+          const monthly = parseFloat(newBill.amount) || 0;
+          const months = parseFloat(newBill.duration) || 0;
+          const down = parseFloat(newBill.downPayment) || 0;
+          
+          if (monthly > 0 && months > 0) {
+              const total = (monthly * months) + down;
+              setNewBill(prev => ({ ...prev, totalDebt: total.toFixed(2) }));
+          }
+      }
+  }, [newBill.amount, newBill.duration, newBill.downPayment, newBill.type, editingBillId]);
 
   useEffect(() => {
       if (activeTab === 'bills' || activeTab === 'archive' || activeTab === 'subscriptions') {
@@ -165,21 +200,28 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
 
   // Auto-detect Logo for Loan
   useEffect(() => {
-      if (newLoan.name) {
-          const match = knownLogos.find(l => l.name.toLowerCase() === newLoan.name.trim().toLowerCase() || newLoan.name.toLowerCase().includes(l.name.toLowerCase()));
-          if (match && !newLoan.icon) {
+      if (newLoan.name && !newLoan.icon) {
+          const match = findMatchingLogo(newLoan.name);
+          if (match) {
               setNewLoan(prev => ({ ...prev, icon: match.logoUrl }));
           }
       }
   }, [newLoan.name, knownLogos]);
 
-  // Helper to find logo for a bill based on provider name
-  const getAutoLogo = (providerName: string) => {
-      if (!providerName) return null;
-      const normalized = providerName.trim().toLowerCase();
-      // Try exact match first, then partial
-      const match = knownLogos.find(l => l.name.toLowerCase() === normalized) 
-                 || knownLogos.find(l => normalized.includes(l.name.toLowerCase()) || l.name.toLowerCase().includes(normalized));
+  // Auto-detect Logo for Bill
+  useEffect(() => {
+      if (newBill.provider && !newBill.icon) {
+          const match = findMatchingLogo(newBill.provider);
+          if (match) {
+              setNewBill(prev => ({ ...prev, icon: match.logoUrl }));
+          }
+      }
+  }, [newBill.provider, knownLogos]);
+
+  // Helper to get logo URL (prioritizes instance icon, then lookup)
+  const getDisplayLogo = (icon: string | undefined, name: string) => {
+      if (icon && icon.length > 0) return icon;
+      const match = findMatchingLogo(name);
       return match ? match.logoUrl : null;
   };
 
@@ -272,10 +314,17 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
   };
   
   const handleSmartImport = async () => {
-     if (!smartText) return;
+     if (!smartText && !newLoan.contractPdf) return;
       setIsParsing(true);
       try {
-          const parsed = await parseLoanDetailsFromText(smartText);
+          let parsed: any = null;
+          
+          if (newLoan.contractPdf) {
+              parsed = await parseLoanFromPdf(newLoan.contractPdf);
+          } else if (smartText) {
+              parsed = await parseLoanDetailsFromText(smartText);
+          }
+
           if (parsed) {
               let calcPaidAmount = '';
               if (parsed.paidInstallments && parsed.monthlyPayment) {
@@ -305,9 +354,14 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                   lastPaymentAmount: parsed.lastPaymentAmount?.toString() || ''
               }));
               if (parsed.lenderName) {
+                  // Try to find lender in standard list
                   const foundLender = SAUDI_LENDERS.find(l => l.includes(parsed.lenderName || ''));
-                  if (foundLender) setSelectedLender(foundLender);
-                  else setNewLoan(prev => ({...prev, name: parsed.lenderName || ''}));
+                  const nameToUse = foundLender || parsed.lenderName || '';
+                  setNewLoan(prev => ({...prev, name: nameToUse}));
+                  
+                  // Auto-detect logo here as well immediately
+                  const match = findMatchingLogo(nameToUse);
+                  if (match) setNewLoan(prev => ({...prev, icon: match.logoUrl}));
               }
               setShowSmartModal(false);
               setShowAddModal(true);
@@ -389,7 +443,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
         status: schedule.every(s => s.isPaid) ? 'completed' : 'active',
         schedule: schedule,
         contractPdf: newLoan.contractPdf,
-        icon: newLoan.icon
+        icon: newLoan.icon // Save detected icon
       };
 
       if (isEditing) {
@@ -448,11 +502,19 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
               durationMonths: calculatedDuration ? parseInt(calculatedDuration) : undefined,
               lastPaymentAmount: newBill.lastAmount ? parseFloat(newBill.lastAmount) : undefined,
               downPayment: newBill.downPayment ? parseFloat(newBill.downPayment) : undefined,
+              totalDebt: newBill.totalDebt ? parseFloat(newBill.totalDebt) : undefined,
               isSubscription: newBill.type === 'subscription',
               renewalDate: newBill.renewalDate,
               status: 'active',
-              icon: '' // Will be auto-resolved from provider name in UI
+              icon: newBill.icon, // Save detected icon
+              paidDates: [],
+              customSchedule: newBill.customSchedule
           };
+          
+          if (editingBillId) {
+             const existing = bills.find(b => b.id === editingBillId);
+             if (existing) billData.paidDates = existing.paidDates;
+          }
 
           if (editingBillId) await storageService.updateBill(billData);
           else await storageService.saveBill(billData);
@@ -519,16 +581,17 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
           duration: bill.durationMonths?.toString() || '',
           lastAmount: bill.lastPaymentAmount?.toString() || '',
           downPayment: bill.downPayment?.toString() || '',
+          totalDebt: bill.totalDebt?.toString() || '',
           endDateMode: bill.durationMonths ? 'months' : 'date',
           isSubscription: bill.isSubscription || false,
           renewalDate: bill.renewalDate || '',
+          customSchedule: bill.customSchedule,
+          icon: bill.icon || ''
       });
       setShowAddBillModal(true);
       if (selectedBill) setSelectedBill(null);
   };
 
-  // --- Payment Modal Logic ---
-  
   const initiatePayment = (type: 'loan' | 'bill', item: any, scheduleItem?: any, amount: number = 0, date: string = '') => {
       setPaymentModal({
           isOpen: true,
@@ -547,91 +610,251 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
       }
   };
 
+  const initiateUndoPayment = (item: any, scheduleItem: any, amount: number) => {
+      setPaymentModal({
+          isOpen: true,
+          type: 'refund',
+          item,
+          scheduleItem,
+          amount,
+          title: `تراجع عن سداد: ${item.name}`,
+          date: scheduleItem.date instanceof Date ? scheduleItem.date.toLocaleDateString('en-GB') : new Date(scheduleItem.paymentDate).toLocaleDateString('en-GB')
+      });
+      if (settings.cards.length > 0) {
+          setSelectedPaymentCardId(settings.cards[0].id);
+      } else {
+          setSelectedPaymentCardId('cash');
+      }
+  };
+
   const confirmPayment = async () => {
       setIsProcessing(true);
       try {
-          // 1. Deduct Balance (if card selected)
-          if (selectedPaymentCardId !== 'cash') {
-              const cardIndex = settings.cards.findIndex(c => c.id === selectedPaymentCardId);
-              if (cardIndex > -1) {
-                  const updatedCards = [...settings.cards];
-                  const card = updatedCards[cardIndex];
-                  const newBalance = (card.balance || 0) - paymentModal.amount;
-                  
-                  updatedCards[cardIndex] = { ...card, balance: newBalance };
-                  
-                  // Save Settings
-                  const newSettings = { ...settings, cards: updatedCards };
-                  const savedSettings = await storageService.saveSettings(newSettings);
-                  setSettings(savedSettings);
+          if (paymentModal.type === 'refund') {
+              // --- Handle Refund (Undo) ---
+              // 1. Add Balance to Card
+              if (selectedPaymentCardId !== 'cash') {
+                  const cardIndex = settings.cards.findIndex(c => c.id === selectedPaymentCardId);
+                  if (cardIndex > -1) {
+                      const updatedCards = [...settings.cards];
+                      const card = updatedCards[cardIndex];
+                      const newBalance = (card.balance || 0) + paymentModal.amount; // Add back
+                      updatedCards[cardIndex] = { ...card, balance: newBalance };
+                      
+                      const newSettings = { ...settings, cards: updatedCards };
+                      const savedSettings = await storageService.saveSettings(newSettings);
+                      setSettings(savedSettings);
+                  }
               }
+
+              // 2. Record Refund Transaction
+              const tx: Transaction = {
+                  id: '',
+                  amount: paymentModal.amount,
+                  type: TransactionType.INCOME, // Money coming back
+                  category: 'استرداد / تصحيح',
+                  date: new Date().toISOString(),
+                  note: `تراجع عن سداد: ${paymentModal.item.name}`,
+                  cardId: selectedPaymentCardId !== 'cash' ? selectedPaymentCardId : undefined
+              };
+              await storageService.saveTransaction(tx);
+              
+              // NEW: Update Bill OR Loan State (Undo)
+              if (paymentModal.item.provider) { // It is a bill
+                   const bill = paymentModal.item as Bill;
+                   if (paymentModal.scheduleItem) {
+                       const dateStr = paymentModal.scheduleItem.date.toISOString().split('T')[0];
+                       bill.paidDates = (bill.paidDates || []).filter(d => d !== dateStr);
+                       await storageService.updateBill(bill);
+                       setBills(await storageService.getBills());
+                       if (selectedBill?.id === bill.id) setSelectedBill({...bill});
+                   }
+              } else {
+                   // Loan Undo Logic
+                   const loan = paymentModal.item as Loan;
+                   const scheduleItem = paymentModal.scheduleItem;
+                   const itemIndex = loan.schedule.findIndex(s => s.paymentDate === scheduleItem.paymentDate);
+                   if (itemIndex > -1) {
+                       loan.schedule[itemIndex].isPaid = false;
+                       loan.status = 'active'; 
+                       await storageService.updateLoan(loan);
+                       const updatedLoans = await storageService.getLoans();
+                       setLoans(updatedLoans);
+                       if (selectedLoan?.id === loan.id) setSelectedLoan(updatedLoans.find(l=>l.id===loan.id) || null);
+                   }
+              }
+
+              notify('تم التراجع عن السداد وتسجيل عملية استرداد', 'success');
+
+          } else {
+              // --- Handle Payment ---
+              // 1. Deduct Balance (if card selected)
+              if (selectedPaymentCardId !== 'cash') {
+                  const cardIndex = settings.cards.findIndex(c => c.id === selectedPaymentCardId);
+                  if (cardIndex > -1) {
+                      const updatedCards = [...settings.cards];
+                      const card = updatedCards[cardIndex];
+                      const newBalance = (card.balance || 0) - paymentModal.amount;
+                      
+                      updatedCards[cardIndex] = { ...card, balance: newBalance };
+                      
+                      const newSettings = { ...settings, cards: updatedCards };
+                      const savedSettings = await storageService.saveSettings(newSettings);
+                      setSettings(savedSettings);
+                  }
+              }
+
+              // 2. Record Transaction
+              const tx: Transaction = {
+                  id: '',
+                  amount: paymentModal.amount,
+                  type: TransactionType.EXPENSE,
+                  category: paymentModal.type === 'loan' ? 'قروض' : 'فواتير وخدمات',
+                  date: new Date().toISOString(),
+                  note: `${paymentModal.title} (${paymentModal.date})`,
+                  cardId: selectedPaymentCardId !== 'cash' ? selectedPaymentCardId : undefined
+              };
+              await storageService.saveTransaction(tx);
+
+              // 3. Update Item Status (Only for Loans needed to update DB schedule)
+              if (paymentModal.type === 'loan' && paymentModal.scheduleItem) {
+                  const loan = paymentModal.item as Loan;
+                  const scheduleItem = paymentModal.scheduleItem;
+                  
+                  const itemIndex = loan.schedule.findIndex(s => s.paymentDate === scheduleItem.paymentDate);
+                  if (itemIndex > -1) {
+                      loan.schedule[itemIndex].isPaid = true;
+                      loan.status = loan.schedule.every(s => s.isPaid) ? 'completed' : 'active';
+                      
+                      await storageService.updateLoan(loan);
+                      const updatedLoans = await storageService.getLoans();
+                      setLoans(updatedLoans);
+                      if (selectedLoan?.id === loan.id) setSelectedLoan(updatedLoans.find(l=>l.id===loan.id) || null);
+                  }
+              }
+              // NEW: Update Bill State (Pay)
+              else if (paymentModal.type === 'bill' && paymentModal.scheduleItem) {
+                  const bill = paymentModal.item as Bill;
+                  const dateStr = paymentModal.scheduleItem.date.toISOString().split('T')[0];
+                  const currentPaid = bill.paidDates || [];
+                  if (!currentPaid.includes(dateStr)) {
+                      bill.paidDates = [...currentPaid, dateStr];
+                      await storageService.updateBill(bill);
+                      setBills(await storageService.getBills());
+                      if (selectedBill?.id === bill.id) setSelectedBill({...bill}); 
+                  }
+              }
+
+              notify('تم السداد وتسجيل العملية بنجاح', 'success');
           }
 
-          // 2. Record Transaction
-          const tx: Transaction = {
-              id: '',
-              amount: paymentModal.amount,
-              type: TransactionType.EXPENSE,
-              category: paymentModal.type === 'loan' ? 'قروض' : 'فواتير وخدمات',
-              date: new Date().toISOString(),
-              note: `${paymentModal.title} (${paymentModal.date})`,
-              cardId: selectedPaymentCardId !== 'cash' ? selectedPaymentCardId : undefined
-          };
-          await storageService.saveTransaction(tx);
-
-          // 3. Update Item Status
-          if (paymentModal.type === 'loan' && paymentModal.scheduleItem) {
-               const loan = paymentModal.item as Loan;
-               const scheduleItem = paymentModal.scheduleItem;
-               
-               const itemIndex = loan.schedule.findIndex(s => s.paymentDate === scheduleItem.paymentDate);
-               if (itemIndex > -1) {
-                   loan.schedule[itemIndex].isPaid = true;
-                   loan.status = loan.schedule.every(s => s.isPaid) ? 'completed' : 'active';
-                   
-                   await storageService.updateLoan(loan);
-                   const updatedLoans = await storageService.getLoans();
-                   setLoans(updatedLoans);
-                   if (selectedLoan?.id === loan.id) setSelectedLoan(loan);
-               }
-          } else if (paymentModal.type === 'bill') {
-               // For bills, we just record the transaction and maybe notify success
-               // If we had a last_payment_date in schema we would update it here.
-               // For now, the transaction record is the "Proof" of payment.
-          }
-
-          notify('تم السداد وتسجيل العملية بنجاح', 'success');
           setPaymentModal({ ...paymentModal, isOpen: false });
 
       } catch (e) {
           console.error(e);
-          notify('حدث خطأ أثناء عملية السداد', 'error');
+          notify('حدث خطأ أثناء العملية', 'error');
       } finally {
           setIsProcessing(false);
       }
   };
   
-  const handleOpenScheduleEditor = () => { setShowScheduleEditor(true); };
+  const handleOpenScheduleEditor = (mode: 'loan' | 'bill') => {
+    setScheduleEditorMode(mode);
+
+    if (mode === 'loan') {
+        const duration = parseInt(newLoan.duration) || 0;
+        if (duration <= 0) { notify('حدد المدة أولاً', 'error'); return; }
+
+        // If schedule is empty or duration changed, regenerate based on current form
+        if (manualSchedule.length === 0 || manualSchedule.length !== duration) {
+            const total = parseFloat(newLoan.amount.replace(/,/g, '')) || 0;
+            const monthly = total > 0 ? total / duration : 0;
+            const start = new Date(newLoan.startDate);
+            
+            const newSchedule = Array.from({ length: duration }).map((_, i) => {
+                const d = new Date(start);
+                d.setMonth(start.getMonth() + i);
+                return {
+                    date: d.toISOString().split('T')[0],
+                    amount: parseFloat(monthly.toFixed(2))
+                };
+            });
+            setManualSchedule(newSchedule);
+        }
+    } else {
+        // Bill Mode
+        const duration = parseInt(newBill.duration) || 0;
+        if (duration <= 0) { notify('حدد المدة بالأشهر أولاً', 'error'); return; }
+        if (!newBill.startDate) { notify('حدد تاريخ البداية أولاً', 'error'); return; }
+
+        // Load existing custom schedule if editing and duration matches
+        if (newBill.customSchedule && newBill.customSchedule.length === duration) {
+            setManualSchedule(newBill.customSchedule.map(i => ({...i}))); // Clone
+        } else {
+            // Generate new based on amount
+            const monthly = parseFloat(newBill.amount) || 0;
+            const start = new Date(newBill.startDate);
+            const newSchedule = Array.from({ length: duration }).map((_, i) => {
+                const d = new Date(start);
+                d.setMonth(start.getMonth() + i + 1); // Bills usually start month after
+                return {
+                    date: d.toISOString().split('T')[0],
+                    amount: parseFloat(monthly.toFixed(2))
+                };
+            });
+            setManualSchedule(newSchedule);
+        }
+    }
+    setShowScheduleEditor(true); 
+  };
+  
   const updateManualInstallment = (idx:number, val:number) => { const n = [...manualSchedule]; n[idx].amount = val; setManualSchedule(n); };
   const applyToAll = (val:number) => { setManualSchedule(manualSchedule.map(i=>({...i, amount:val}))); };
-  const confirmManualSchedule = () => { setNewLoan(p=>({...p, amount: manualSchedule.reduce((s,i)=>s+i.amount,0).toFixed(2)})); setShowScheduleEditor(false); };
+  
+  const confirmManualSchedule = () => { 
+      // Update total loan/bill amount to match the sum of manual installments
+      const totalSum = manualSchedule.reduce((s,i)=>s+i.amount,0);
+
+      if (scheduleEditorMode === 'loan') {
+         setNewLoan(p=>({...p, amount: totalSum.toFixed(2)})); 
+         notify(`تم تحديث الجدول وإجمالي القرض إلى ${totalSum.toFixed(2)}`, 'success');
+      } else {
+         // Bill Mode
+         // Update Bill state with new schedule and total debt
+         const down = parseFloat(newBill.downPayment) || 0;
+         const totalWithDown = totalSum + down;
+         setNewBill(p => ({
+             ...p,
+             customSchedule: manualSchedule, // Save the array
+             totalDebt: totalWithDown.toFixed(2) // Update total debt
+         }));
+         notify(`تم تحديث جدول الفاتورة وإجمالي الدين إلى ${totalWithDown.toFixed(2)}`, 'success');
+      }
+
+      setShowScheduleEditor(false); 
+  };
   
   const renderIcon = (iconString?: string, defaultIcon = <Landmark className="text-slate-400"/>) => {
       if (!iconString) return defaultIcon;
-      if (iconString.startsWith('data:image')) {
+      if (iconString.startsWith('data:image') || iconString.startsWith('http')) {
           return <img src={iconString} alt="icon" className="w-full h-full rounded-2xl object-cover" />;
       }
       return <span className="text-3xl">{iconString}</span>;
   };
 
-  const getBillIcon = (type: string, providerName: string) => {
-     // 1. Try to find auto logo from provider name
-     const autoLogo = getAutoLogo(providerName);
+  const getBillIcon = (type: string, providerName: string, icon?: string) => {
+     // 1. Prefer explicitly saved icon
+     if (icon && icon.length > 0) {
+         return <img src={icon} alt={providerName} className="w-full h-full rounded-2xl object-cover" />;
+     }
+
+     // 2. Try to find auto logo from provider name
+     const autoLogo = getDisplayLogo(undefined, providerName);
      if (autoLogo) {
           return <img src={autoLogo} alt={providerName} className="w-full h-full rounded-2xl object-cover" />;
      }
      
-     // 2. Fallback to generic icons
+     // 3. Fallback to generic icons
      if(type === 'subscription') return <RotateCw className="text-purple-500 w-8 h-8"/>;
      switch(type) {
           case 'electricity': return <Zap className="text-amber-500 w-8 h-8" />;
@@ -725,16 +948,43 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
       // Scenario 1: It has a start date and duration (Installment-like)
       if (bill.startDate && bill.durationMonths && bill.durationMonths > 0) {
           const start = new Date(bill.startDate);
-          for (let i = 0; i < bill.durationMonths; i++) {
-              const date = new Date(start);
-              date.setMonth(start.getMonth() + i);
-              const isPaid = date < today; // Simple logic: if date passed, assume paid for view
-              
-              let amount = bill.amount;
-              if (i === 0 && bill.downPayment) amount = bill.downPayment; // Simplified
-              if (i === bill.durationMonths - 1 && bill.lastPaymentAmount) amount = bill.lastPaymentAmount;
+          
+          // --- Down Payment Logic ---
+          if (bill.downPayment && bill.downPayment > 0) {
+               const downPaymentDate = new Date(start);
+               const dpDateStr = downPaymentDate.toISOString().split('T')[0];
+               schedule.push({
+                   date: downPaymentDate, // Down payment is usually at start date
+                   amount: bill.downPayment,
+                   isPaid: (bill.paidDates || []).includes(dpDateStr),
+                   type: 'down_payment'
+               });
+          }
 
-              schedule.push({ date, amount, isPaid, type: 'installment' });
+          // --- Installments Logic ---
+          // Use Custom Schedule if exists
+          if (bill.customSchedule && bill.customSchedule.length > 0) {
+              bill.customSchedule.forEach(item => {
+                  const d = new Date(item.date);
+                  const dateStr = item.date;
+                  const isPaid = (bill.paidDates || []).includes(dateStr);
+                  schedule.push({ date: d, amount: item.amount, isPaid, type: 'installment' });
+              });
+          } else {
+              // Standard Generation
+              const monthlyAmount = bill.amount;
+              for (let i = 0; i < bill.durationMonths; i++) {
+                  const date = new Date(start);
+                  date.setMonth(start.getMonth() + i + 1); // Installments start next month
+                  
+                  const dateStr = date.toISOString().split('T')[0];
+                  const isPaid = (bill.paidDates || []).includes(dateStr);
+                  
+                  let amount = monthlyAmount;
+                  if (i === bill.durationMonths - 1 && bill.lastPaymentAmount) amount = bill.lastPaymentAmount;
+
+                  schedule.push({ date, amount, isPaid, type: 'installment' });
+              }
           }
       } 
       // Scenario 2: Subscription (Ongoing)
@@ -748,10 +998,13 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                   const renewalDay = new Date(bill.renewalDate).getDate();
                   date.setDate(renewalDay);
               }
+              const dateStr = date.toISOString().split('T')[0];
+              const isPaid = (bill.paidDates || []).includes(dateStr);
+              
               schedule.push({ 
                   date, 
                   amount: bill.amount, 
-                  isPaid: i < 0, 
+                  isPaid, 
                   type: 'subscription' 
               });
           }
@@ -762,7 +1015,9 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
            for (let i = -1; i <= 3; i++) {
               const date = new Date(today);
               date.setMonth(today.getMonth() + i);
-              schedule.push({ date, amount: bill.amount, isPaid: i < 0, type: 'monthly' });
+              const dateStr = date.toISOString().split('T')[0];
+              const isPaid = (bill.paidDates || []).includes(dateStr);
+              schedule.push({ date, amount: bill.amount, isPaid, type: 'monthly' });
            }
       }
       return schedule;
@@ -872,7 +1127,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
       ) : (
       <div className="space-y-6">
           <div className="flex justify-end mb-4">
-              <button onClick={() => { setShowAddBillModal(true); setEditingBillId(null); setNewBill({ provider: '', type: 'electricity', amount: '', hasEndDate: false, endDate: '', deviceDetails: '', startDate: '', duration: '', lastAmount: '', downPayment: '', endDateMode: 'months', isSubscription: false, renewalDate: '' }); }} className="flex items-center justify-center gap-2 bg-emerald-600 text-white px-3 py-2 rounded-lg text-sm font-bold shadow-lg"><Plus size={16}/><span>إضافة جديد</span></button>
+              <button onClick={() => { setShowAddBillModal(true); setEditingBillId(null); setNewBill({ provider: '', type: 'electricity', amount: '', hasEndDate: false, endDate: '', deviceDetails: '', startDate: '', duration: '', lastAmount: '', downPayment: '', totalDebt: '', endDateMode: 'months', isSubscription: false, renewalDate: '', customSchedule: undefined, icon: '' }); }} className="flex items-center justify-center gap-2 bg-emerald-600 text-white px-3 py-2 rounded-lg text-sm font-bold shadow-lg"><Plus size={16}/><span>إضافة جديد</span></button>
           </div>
           
           {activeTab === 'subscriptions' && (
@@ -893,20 +1148,40 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredBills.map(bill => {
                   const daysLeft = bill.endDate ? Math.ceil((new Date(bill.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : 999;
-                  const monthsLeft = daysLeft > 0 ? Math.ceil(daysLeft / 30) : 0;
                   const isExpiringSoon = daysLeft < 30 && daysLeft > 0;
                   
-                  // Calculate Estimated Remaining for installment-like bills
-                  const estimatedRemaining = (bill.durationMonths || (bill.endDate ? monthsLeft : 0)) > 0 
-                      ? (bill.amount * monthsLeft) 
-                      : 0;
+                  // --- NEW ACCURATE CALCULATION LOGIC ---
+                  const paidCount = (bill.paidDates || []).length;
+                  let monthsLeft = 0;
+                  let estimatedRemaining = 0;
+
+                  if (bill.durationMonths) {
+                      // Fixed Duration (Installments)
+                      monthsLeft = Math.max(0, bill.durationMonths - paidCount);
+
+                      if (bill.totalDebt) {
+                          // If Total Debt is known: Remaining = Total - (DownPayment + (Monthly * PaidCount))
+                          // NOTE: If customSchedule exists, we could use that for precision, but totalDebt is already reliable if maintained correctly
+                          const totalPaid = (bill.downPayment || 0) + (bill.amount * paidCount); 
+                          // NOTE: Ideally we sum actual paid items from schedule for precision, but simple tracking works here
+                          estimatedRemaining = Math.max(0, bill.totalDebt - totalPaid);
+                      } else {
+                          // Fallback: Remaining = MonthsLeft * MonthlyAmount
+                          estimatedRemaining = monthsLeft * bill.amount;
+                      }
+                  } else {
+                      // Ongoing or Date-based only
+                      const calendarMonthsLeft = daysLeft > 0 ? Math.ceil(daysLeft / 30) : 0;
+                      monthsLeft = calendarMonthsLeft;
+                      estimatedRemaining = calendarMonthsLeft * bill.amount;
+                  }
 
                   return (
                   <div key={bill.id} onClick={() => setSelectedBill(bill)} className={`bg-white dark:bg-slate-900 p-5 rounded-2xl border shadow-sm relative group hover:shadow-md transition-all cursor-pointer ${bill.status === 'archived' ? 'opacity-60 grayscale' : ''} ${isExpiringSoon ? 'border-amber-400 ring-1 ring-amber-400' : 'border-slate-100 dark:border-slate-800'}`}>
                       {/* Updated Bill Card Header with Icon on Right & Light Bg in Dark Mode */}
                       <div className="flex items-center gap-4 mb-4">
                           <div className="w-14 h-14 rounded-2xl bg-slate-50 dark:bg-white flex items-center justify-center border border-slate-100 dark:border-slate-300 shadow-sm shrink-0 overflow-hidden">
-                              {getBillIcon(bill.type, bill.provider)}
+                              {getBillIcon(bill.type, bill.provider, bill.icon)}
                           </div>
                           <div>
                               <h4 className="font-bold text-base text-slate-900 dark:text-white">{bill.name}</h4>
@@ -915,7 +1190,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                       </div>
 
                       <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl mb-3 border border-slate-100 dark:border-slate-700">
-                          <span className="text-xs text-slate-500 dark:text-slate-400">القيمة</span>
+                          <span className="text-xs text-slate-500 dark:text-slate-400">القسط الشهري</span>
                           <span className="font-bold text-xl text-slate-900 dark:text-white">{bill.amount.toFixed(2)}</span>
                       </div>
                       
@@ -945,14 +1220,22 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                           <div className="mt-3 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 rounded-lg p-2 flex flex-col gap-1 items-center justify-center text-center">
                               <div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-300 font-bold text-xs">
                                 <Hourglass size={14} />
-                                <span>متبقي {monthsLeft} شهر</span>
+                                <span>متبقي {monthsLeft} شهر (فعلي)</span>
                               </div>
                               {estimatedRemaining > 0 && (
                                   <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
-                                      إجمالي المتوقع: <span className="text-rose-500 dark:text-rose-400">{estimatedRemaining.toLocaleString('en-US')}</span>
+                                      المتبقي المتوقع: <span className="text-rose-500 dark:text-rose-400">{estimatedRemaining.toLocaleString('en-US')}</span>
                                   </div>
                               )}
                           </div>
+                      )}
+                      
+                      {/* Completed Status Badge */}
+                      {monthsLeft === 0 && (bill.durationMonths || bill.endDate) && (
+                           <div className="mt-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 rounded-lg p-2 flex items-center justify-center gap-1 text-emerald-700 dark:text-emerald-300 font-bold text-xs">
+                               <CheckCircle size={14}/>
+                               <span>مكتمل السداد</span>
+                           </div>
                       )}
 
                       {isExpiringSoon && (
@@ -973,6 +1256,103 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
       </div>
       )}
 
+      {/* Loan Details Modal (Restored) */}
+      {selectedLoan && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+            <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-3xl shadow-2xl animate-scale-in max-h-[90vh] flex flex-col overflow-hidden">
+                <div className="p-6 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 flex flex-col gap-4">
+                    <div className="flex justify-between items-start">
+                         <div className="flex items-center gap-3">
+                             <div className="w-14 h-14 rounded-xl bg-white dark:bg-white flex items-center justify-center border border-slate-200 shadow-sm shrink-0 overflow-hidden">
+                                {renderIcon(selectedLoan.icon)}
+                             </div>
+                             <div>
+                                <h3 className="font-bold text-xl text-slate-800 dark:text-white">
+                                    {selectedLoan.name}
+                                </h3>
+                                <p className="text-sm text-slate-500 dark:text-slate-400">{selectedLoan.description}</p>
+                             </div>
+                         </div>
+                         <button onClick={() => setSelectedLoan(null)} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors text-slate-500"><X size={24}/></button>
+                    </div>
+                    
+                    <div className="flex flex-wrap gap-2">
+                         <button onClick={() => handleEditClick(selectedLoan)} className="bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-300 px-3 py-2 rounded-lg text-sm font-bold border border-blue-200 dark:border-blue-800 flex items-center gap-1"><Edit3 size={14}/> تعديل</button>
+                         <button onClick={handleDeleteLoan} className="bg-rose-50 text-rose-600 dark:bg-rose-900/20 dark:text-rose-300 px-3 py-2 rounded-lg text-sm font-bold border border-rose-200 dark:border-rose-800 flex items-center gap-1"><Trash2 size={14}/> حذف</button>
+                    </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-0">
+                    <div className="p-4 bg-slate-50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800">
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div className="bg-white dark:bg-slate-800 p-3 rounded-xl border dark:border-slate-700">
+                                <span className="text-slate-400 text-xs block mb-1">إجمالي المبلغ</span>
+                                <span className="font-bold text-lg dark:text-white">{selectedLoan.totalAmount.toLocaleString('en-US')}</span>
+                            </div>
+                            <div className="bg-white dark:bg-slate-800 p-3 rounded-xl border dark:border-slate-700">
+                                <span className="text-slate-400 text-xs block mb-1">المتبقي</span>
+                                <span className="font-bold text-lg text-rose-600 dark:text-rose-400">
+                                    {selectedLoan.schedule.filter(s => !s.isPaid).reduce((a,c)=>a+c.remainingBalance,0).toLocaleString('en-US')}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="p-4">
+                        <h4 className="font-bold text-sm text-slate-500 dark:text-slate-400 mb-3 flex items-center gap-2"><ListChecks size={16}/> جدول السداد</h4>
+                        <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
+                            <table className="w-full text-sm text-left rtl:text-right text-slate-500 dark:text-slate-400">
+                                <thead className="text-xs text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800">
+                                    <tr>
+                                        <th className="px-4 py-3">#</th>
+                                        <th className="px-4 py-3">التاريخ</th>
+                                        <th className="px-4 py-3">المبلغ</th>
+                                        <th className="px-4 py-3">الحالة</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {selectedLoan.schedule.map((item, idx) => (
+                                        <tr key={idx} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
+                                            <td className="px-4 py-3 font-medium">{idx + 1}</td>
+                                            <td className="px-4 py-3 whitespace-nowrap">
+                                                {new Date(item.paymentDate).toLocaleDateString('en-GB')}
+                                            </td>
+                                            <td className="px-4 py-3 font-bold text-slate-900 dark:text-white">
+                                                {item.paymentAmount.toLocaleString('en-US')}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {item.isPaid ? (
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="flex items-center text-emerald-600 text-xs font-bold gap-1 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-1 rounded">
+                                                            <CheckCircle size={12}/> مدفوع
+                                                        </span>
+                                                        <button 
+                                                            onClick={() => initiateUndoPayment(selectedLoan, item, item.paymentAmount)}
+                                                            className="text-xs text-slate-400 hover:text-rose-500 underline"
+                                                        >
+                                                            تراجع
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <button 
+                                                        onClick={() => initiatePayment('loan', selectedLoan, item, item.paymentAmount, new Date(item.paymentDate).toLocaleDateString('en-GB'))}
+                                                        className="bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 px-3 py-1 rounded-lg text-xs font-bold hover:opacity-90"
+                                                    >
+                                                        سداد
+                                                    </button>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+          </div>
+      )}
+
       {/* Bill Details Modal with Schedule */}
       {selectedBill && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
@@ -981,7 +1361,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                     <div className="flex justify-between items-start">
                          <div className="flex items-center gap-3">
                              <div className="w-14 h-14 rounded-xl bg-white dark:bg-white flex items-center justify-center border border-slate-200 shadow-sm shrink-0 overflow-hidden">
-                                {getBillIcon(selectedBill.type, selectedBill.provider)}
+                                {getBillIcon(selectedBill.type, selectedBill.provider, selectedBill.icon)}
                              </div>
                              <div>
                                 <h3 className="font-bold text-xl text-slate-800 dark:text-white">
@@ -1005,13 +1385,19 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                     <div className="p-4 bg-slate-50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800">
                         <div className="grid grid-cols-2 gap-4 text-sm">
                             <div className="bg-white dark:bg-slate-800 p-3 rounded-xl border dark:border-slate-700">
-                                <span className="text-slate-400 text-xs block mb-1">المبلغ</span>
+                                <span className="text-slate-400 text-xs block mb-1">القسط الشهري</span>
                                 <span className="font-bold text-lg dark:text-white">{selectedBill.amount.toLocaleString('en-US')}</span>
                             </div>
                             <div className="bg-white dark:bg-slate-800 p-3 rounded-xl border dark:border-slate-700">
                                 <span className="text-slate-400 text-xs block mb-1">تاريخ البداية</span>
                                 <span className="font-bold dark:text-white">{selectedBill.startDate ? new Date(selectedBill.startDate).toLocaleDateString('en-GB') : 'غير محدد'}</span>
                             </div>
+                             {selectedBill.totalDebt && (
+                                <div className="col-span-2 bg-indigo-50 dark:bg-indigo-900/20 p-3 rounded-xl border border-indigo-100 dark:border-indigo-800">
+                                    <span className="text-indigo-500 text-xs block mb-1 font-bold">إجمالي قيمة العقد/الدين</span>
+                                    <span className="font-bold text-lg text-indigo-700 dark:text-indigo-300">{selectedBill.totalDebt.toLocaleString('en-US')}</span>
+                                </div>
+                            )}
                             {selectedBill.deviceDetails && (
                                 <div className="col-span-2 bg-white dark:bg-slate-800 p-3 rounded-xl border dark:border-slate-700">
                                     <span className="text-slate-400 text-xs block mb-1">تفاصيل الجهاز</span>
@@ -1034,15 +1420,33 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                                 </thead>
                                 <tbody>
                                     {getBillSchedule(selectedBill).map((item, idx) => (
-                                        <tr key={idx} className={`border-b border-slate-100 dark:border-slate-800 last:border-0 ${item.isPaid ? 'bg-slate-50/50 dark:bg-slate-800/30' : 'bg-white dark:bg-slate-900'}`}>
-                                            <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-200">{item.date.toLocaleDateString('en-GB')}</td>
-                                            <td className="px-4 py-3 font-bold">{item.amount.toLocaleString('en-US')}</td>
+                                        <tr key={idx} className={`border-b border-slate-100 dark:border-slate-800 last:border-0 ${item.type === 'down_payment' ? 'bg-indigo-50/50 dark:bg-indigo-900/10' : ''}`}>
+                                            <td className="px-4 py-3 whitespace-nowrap">
+                                                {item.type === 'down_payment' && <span className="text-xs text-indigo-500 block">دفعة أولى</span>}
+                                                {new Date(item.date).toLocaleDateString('en-GB')}
+                                            </td>
+                                            <td className="px-4 py-3 font-bold text-slate-900 dark:text-white">
+                                                {item.amount.toLocaleString('en-US')}
+                                            </td>
                                             <td className="px-4 py-3">
                                                 {item.isPaid ? (
-                                                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"><CheckCircle size={12}/> مدفوع</span>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="flex items-center text-emerald-600 text-xs font-bold gap-1 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-1 rounded">
+                                                            <CheckCircle size={12}/> مدفوع
+                                                        </span>
+                                                        <button 
+                                                            onClick={() => initiateUndoPayment(selectedBill, item, item.amount)}
+                                                            className="text-xs text-slate-400 hover:text-rose-500 underline"
+                                                        >
+                                                            تراجع
+                                                        </button>
+                                                    </div>
                                                 ) : (
-                                                    <button onClick={() => initiatePayment('bill', selectedBill, item, item.amount, item.date.toLocaleDateString('en-GB'))} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm hover:opacity-90">
-                                                        <CreditCard size={12}/> سداد
+                                                    <button 
+                                                        onClick={() => initiatePayment('bill', selectedBill, item, item.amount, new Date(item.date).toLocaleDateString('en-GB'))}
+                                                        className="bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 px-3 py-1 rounded-lg text-xs font-bold hover:opacity-90"
+                                                    >
+                                                        سداد
                                                     </button>
                                                 )}
                                             </td>
@@ -1057,556 +1461,464 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
           </div>
       )}
 
-      {/* Loan Details Modal */}
-      {selectedLoan && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-            <div className="bg-white dark:bg-slate-900 w-full max-w-4xl rounded-3xl shadow-2xl animate-scale-in max-h-[90vh] flex flex-col overflow-hidden">
-                <div className="p-6 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 flex flex-col gap-4">
-                    <div className="flex justify-between items-start">
-                         <div className="flex items-center gap-3">
-                             <div className="w-12 h-12 rounded-xl bg-white dark:bg-white flex items-center justify-center border border-slate-200 shadow-sm shrink-0 overflow-hidden">
-                                {renderIcon(selectedLoan.icon)}
-                             </div>
-                             <h3 className="font-bold text-xl text-slate-800 dark:text-white">
-                                 {selectedLoan.name}
-                             </h3>
-                         </div>
-                         <button onClick={() => setSelectedLoan(null)} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors text-slate-500"><X size={24}/></button>
-                    </div>
-                    
-                    <div className="flex flex-wrap gap-2">
-                        <button onClick={() => setShowSettlementCalc(true)} className="bg-indigo-50 text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-300 px-3 py-2 rounded-lg text-sm font-bold border border-indigo-200 dark:border-indigo-800 flex items-center gap-1"><Calculator size={14}/> حاسبة السداد المبكر</button>
-                        <button onClick={() => setShowRefinanceCalc(true)} className="bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-300 px-3 py-2 rounded-lg text-sm font-bold border border-purple-200 dark:border-purple-800 flex items-center gap-1"><RefreshCcw size={14}/> إعادة التمويل</button>
-                        <button onClick={() => handleEditClick(selectedLoan)} className="bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-300 px-3 py-2 rounded-lg text-sm font-bold border border-blue-200 dark:border-blue-800 flex items-center gap-1"><Edit3 size={14}/> تعديل</button>
-                        <button onClick={handleDeleteLoan} className="bg-rose-50 text-rose-600 dark:bg-rose-900/20 dark:text-rose-300 px-3 py-2 rounded-lg text-sm font-bold border border-rose-200 dark:border-rose-800 flex items-center gap-1"><Trash2 size={14}/> حذف</button>
-                    </div>
-                    
-                    {selectedLoan.schedule.length > 0 && selectedLoan.schedule[selectedLoan.schedule.length - 1].paymentAmount > (selectedLoan.schedule[0].paymentAmount * 1.5) && (
-                        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 text-sm text-amber-800 dark:text-amber-300 flex items-center gap-2">
-                            <AlertCircle size={18}/>
-                            <span>تنبيه: توجد دفعة أخيرة كبيرة بقيمة <b>{selectedLoan.schedule[selectedLoan.schedule.length - 1].paymentAmount.toLocaleString('en-US')}</b> تستحق في {new Date(selectedLoan.schedule[selectedLoan.schedule.length - 1].paymentDate).toLocaleDateString('en-GB')}. استعد لها!</span>
-                        </div>
-                    )}
-                </div>
-                
-                <div className="flex-1 overflow-y-auto">
-                    <table className="w-full text-sm text-left rtl:text-right text-slate-500 dark:text-slate-400">
-                            <thead className="text-xs text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 sticky top-0 shadow-sm z-10"><tr><th className="px-6 py-3">التاريخ</th><th className="px-6 py-3">القسط</th><th className="px-6 py-3">المتبقي</th><th className="px-6 py-3">الحالة / إجراء</th></tr></thead>
-                            <tbody>
-                                {selectedLoan.schedule.map((item, idx) => (
-                                    <tr key={idx} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                                        <td className="px-6 py-4">{new Date(item.paymentDate).toLocaleDateString('en-GB')}</td>
-                                        <td className="px-6 py-4 font-bold text-slate-700 dark:text-slate-200">{item.paymentAmount.toFixed(2)}</td>
-                                        <td className="px-6 py-4">{item.remainingBalance.toFixed(2)}</td>
-                                        <td className="px-6 py-4">
-                                            {item.isPaid ? (
-                                                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"><CheckCircle size={12}/> مدفوع</span>
-                                            ) : (
-                                                <button 
-                                                    onClick={() => initiatePayment('loan', selectedLoan, item, item.paymentAmount, new Date(item.paymentDate).toLocaleDateString('en-GB'))} 
-                                                    className="inline-flex items-center gap-1 px-4 py-1.5 rounded-lg text-xs font-bold bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm hover:opacity-90"
-                                                >
-                                                    <CreditCard size={12}/> سداد
-                                                </button>
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-      )}
-
-      {/* Payment Confirmation Modal */}
-      {paymentModal.isOpen && (
-          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in">
-              <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-2xl p-6 shadow-2xl animate-scale-in border border-slate-100 dark:border-slate-800">
-                  <div className="flex justify-between items-center mb-6">
-                      <h3 className="font-bold text-lg text-slate-900 dark:text-white">تأكيد عملية السداد</h3>
-                      <button onClick={() => setPaymentModal({...paymentModal, isOpen: false})} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full"><X size={20}/></button>
-                  </div>
-
-                  <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700 mb-6 text-center">
-                      <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">{paymentModal.title}</p>
-                      <h2 className="text-3xl font-bold text-slate-900 dark:text-white">{paymentModal.amount.toLocaleString('en-US')} <span className="text-sm">SAR</span></h2>
-                  </div>
-
-                  <div className="mb-6">
-                      <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">خصم المبلغ من</label>
-                      <div className="space-y-2">
-                          {settings.cards.map(card => (
-                              <button
-                                  key={card.id}
-                                  onClick={() => setSelectedPaymentCardId(card.id)}
-                                  className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all ${selectedPaymentCardId === card.id ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 ring-1 ring-emerald-500' : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
-                              >
-                                  <div className="flex items-center gap-3">
-                                      <div className="w-10 h-6 rounded bg-slate-800" style={{backgroundColor: card.color}}></div>
-                                      <div className="text-right">
-                                          <p className="text-sm font-bold text-slate-800 dark:text-slate-200">{card.bankName}</p>
-                                          <p className="text-xs text-slate-500">**** {card.cardNumber}</p>
-                                      </div>
-                                  </div>
-                                  <span className="text-sm font-bold text-slate-600 dark:text-slate-400">{card.balance?.toLocaleString('en-US')}</span>
-                              </button>
-                          ))}
-                          <button
-                              onClick={() => setSelectedPaymentCardId('cash')}
-                              className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all ${selectedPaymentCardId === 'cash' ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 ring-1 ring-emerald-500' : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
-                          >
-                              <div className="flex items-center gap-3">
-                                  <div className="w-10 h-6 rounded bg-slate-400 flex items-center justify-center text-white"><Coins size={14}/></div>
-                                  <p className="text-sm font-bold text-slate-800 dark:text-slate-200">نقدي / خارجي</p>
-                              </div>
-                              <span className="text-xs text-slate-400">لن يتم الخصم</span>
-                          </button>
-                      </div>
-                  </div>
-
-                  <button 
-                      onClick={confirmPayment}
-                      disabled={isProcessing}
-                      className="w-full bg-slate-900 dark:bg-[#bef264] text-white dark:text-slate-900 py-3 rounded-xl font-bold text-lg hover:shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-70"
-                  >
-                      {isProcessing ? <Loader2 className="animate-spin" /> : <CheckCircle size={20} />}
-                      <span>تأكيد السداد</span>
-                  </button>
-              </div>
-          </div>
-      )}
-
-      {/* Settlement Calculator Modal */}
-      {showSettlementCalc && selectedLoan && (
-          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-              <div className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-scale-in">
-                  <h3 className="font-bold text-lg mb-4 text-slate-900 dark:text-white">حاسبة السداد المبكر (تقريبي)</h3>
-                  <div className="space-y-4 text-center">
-                      <div className="p-4 bg-emerald-50 dark:bg-emerald-900/30 rounded-xl">
-                          <p className="text-sm text-slate-500 dark:text-slate-400">المبلغ المطلوب للسداد اليوم</p>
-                          <h2 className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{calculateEarlySettlement().toLocaleString('en-US')} SAR</h2>
-                      </div>
-                      <p className="text-xs text-slate-400">* يشمل المبلغ المتبقي من الأصل + أرباح 3 أشهر قادمة (حسب تقديرات البنك المركزي السعودي التقريبية).</p>
-                  </div>
-                  <button onClick={() => setShowSettlementCalc(false)} className="w-full mt-6 bg-slate-900 dark:bg-slate-700 text-white py-3 rounded-xl font-bold">إغلاق</button>
-              </div>
-          </div>
-      )}
-
-      {/* Add Bill/Subscription Modal (REDESIGNED) */}
+      {/* Add Bill Modal - Restored and Enhanced */}
       {showAddBillModal && (
-          <div className="fixed inset-0 z-50 flex items-start md:items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto">
-              <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl p-6 animate-fade-in my-4 md:my-8 border border-slate-200 dark:border-slate-800 relative">
-                   <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-100 dark:border-slate-800">
-                      <div>
-                          <h3 className="text-xl font-bold text-slate-900 dark:text-white">{editingBillId ? 'تعديل الفاتورة/الالتزام' : 'إضافة التزام جديد'}</h3>
-                          <p className="text-xs text-slate-500">أضف فواتيرك، اشتراكاتك، أو أقساط الأجهزة</p>
-                      </div>
-                      <button onClick={() => setShowAddBillModal(false)} className="text-slate-400 hover:text-slate-600"><X size={24}/></button>
-                   </div>
-                   
-                   {/* PDF Upload Section (Compact) */}
-                   <div className="mb-6 flex gap-4 items-center p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 group relative overflow-hidden">
-                      <input type="file" accept="application/pdf" onChange={handleBillPdfChange} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10" />
-                      <div className="p-3 bg-white dark:bg-slate-700 rounded-full shadow-sm text-emerald-500">
-                           {isParsingBill ? <Loader2 className="animate-spin" size={20} /> : <UploadCloud size={20} />}
-                      </div>
-                      <div className="flex-1">
-                          <p className="text-sm font-bold text-slate-800 dark:text-white">تعبئة تلقائية من الفاتورة</p>
-                          <p className="text-xs text-slate-500 dark:text-slate-400">ارفع ملف PDF وسيتم استخراج البيانات</p>
-                      </div>
-                      <div className="text-xs font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 px-3 py-1.5 rounded-lg flex items-center gap-1 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
-                          <Wand2 size={12} />
-                          استيراد
-                      </div>
-                   </div>
-                   
-                  <form onSubmit={handleAddBill} className="space-y-6">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          {/* Left Column: Basic Info */}
-                          <div className="space-y-4">
-                              <div>
-                                  <label className="block text-xs font-bold text-slate-500 mb-1.5">نوع الالتزام</label>
-                                  <div className="relative">
-                                      <select className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500 appearance-none" value={newBill.type} onChange={e=>setNewBill({...newBill, type: e.target.value as any})}>
-                                          <option value="electricity">⚡ فاتورة كهرباء</option>
-                                          <option value="water">💧 فاتورة مياه</option>
-                                          <option value="internet">🌐 انترنت / اتصالات</option>
-                                          <option value="subscription">🔄 اشتراك شهري/سنوي</option>
-                                          <option value="device_installment">📱 أقساط جهاز</option>
-                                          <option value="other">📄 أخرى</option>
-                                      </select>
-                                      <ChevronRight className="absolute left-3 top-3.5 text-slate-400 rotate-90" size={16}/>
-                                  </div>
-                              </div>
-                              
-                              <div>
-                                  <label className="block text-xs font-bold text-slate-500 mb-1.5">المزود / اسم الشركة</label>
-                                  <input type="text" className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500 placeholder:text-slate-400" value={newBill.provider} onChange={e=>setNewBill({...newBill, provider: e.target.value})} placeholder="مثال: STC, Netflix, الكهرباء..." required/>
-                                  <p className="text-[10px] text-emerald-600 mt-1 flex items-center gap-1"><Sparkles size={10}/> سيتم جلب الشعار تلقائياً بناءً على الاسم</p>
-                              </div>
-                          </div>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+              <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-3xl p-6 shadow-2xl animate-scale-in max-h-[90vh] overflow-y-auto">
+                  <div className="flex justify-between items-center mb-6">
+                      <h3 className="font-bold text-xl text-slate-900 dark:text-white">{editingBillId ? 'تعديل الفاتورة' : 'إضافة فاتورة/التزام'}</h3>
+                      <button onClick={() => setShowAddBillModal(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-500"><X size={20}/></button>
+                  </div>
 
-                          {/* Right Column: Amount & Icon Preview */}
-                          <div className="space-y-4">
-                              <div>
-                                  <label className="block text-xs font-bold text-slate-500 mb-1.5">المبلغ الدوري</label>
-                                  <div className="relative">
-                                      <input type="number" step="0.01" className="w-full p-3 pl-12 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 dark:text-white font-bold text-lg outline-none focus:ring-2 focus:ring-emerald-500" value={newBill.amount} onChange={e=>setNewBill({...newBill, amount: e.target.value})} required placeholder="0.00"/>
-                                      <span className="absolute left-4 top-4 text-xs font-bold text-slate-400">SAR</span>
-                                  </div>
-                              </div>
-                          </div>
-                      </div>
-
-                      {/* Dynamic Sections based on Type */}
-                      {newBill.type === 'device_installment' && (
-                        <div className="bg-slate-50 dark:bg-slate-800/50 p-5 rounded-xl border border-slate-200 dark:border-slate-700 space-y-4 animate-slide-up">
-                             <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-700 pb-2 mb-2">
-                                <Smartphone size={16} className="text-slate-500"/>
-                                <h4 className="font-bold text-sm text-slate-700 dark:text-slate-200">تفاصيل عقد الجهاز</h4>
-                             </div>
-                             
-                             <div>
-                                <label className="block text-xs font-bold text-slate-500 mb-1">اسم الجهاز</label>
-                                <input type="text" value={newBill.deviceDetails} onChange={e=>setNewBill({...newBill, deviceDetails: e.target.value})} className="w-full p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg dark:text-white focus:border-emerald-500 outline-none" placeholder="iPhone 15 Pro Max..."/>
-                             </div>
-
-                             <div className="grid grid-cols-2 gap-4">
-                                 <div>
-                                    <label className="block text-xs font-bold text-slate-500 mb-1">تاريخ البداية</label>
-                                    <input type="date" value={newBill.startDate} onChange={e=>setNewBill({...newBill, startDate: e.target.value})} className="w-full p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg dark:text-white focus:border-emerald-500 outline-none"/>
-                                 </div>
-                                 <div>
-                                    <label className="block text-xs font-bold text-slate-500 mb-1">الدفعة الأولى (إن وجدت)</label>
-                                    <input type="number" value={newBill.downPayment} onChange={e=>setNewBill({...newBill, downPayment: e.target.value})} className="w-full p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg dark:text-white focus:border-emerald-500 outline-none" placeholder="0"/>
-                                 </div>
-                             </div>
-                             
-                             <div>
-                                 <label className="block text-xs font-bold text-slate-500 mb-2">طريقة تحديد النهاية</label>
-                                 <div className="flex gap-2 p-1 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-600 w-fit">
-                                    <button type="button" onClick={()=>setNewBill({...newBill, endDateMode: 'months'})} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${newBill.endDateMode === 'months' ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300' : 'text-slate-500'}`}>عدد الأشهر</button>
-                                    <button type="button" onClick={()=>setNewBill({...newBill, endDateMode: 'date'})} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${newBill.endDateMode === 'date' ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300' : 'text-slate-500'}`}>تاريخ انتهاء</button>
-                                 </div>
-                             </div>
-
-                             {newBill.endDateMode === 'months' ? (
-                                 <div>
-                                    <label className="block text-xs font-bold text-slate-500 mb-1">المدة (شهر)</label>
-                                    <input type="number" value={newBill.duration} onChange={e=>setNewBill({...newBill, duration: e.target.value})} className="w-full p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg dark:text-white focus:border-emerald-500 outline-none" placeholder="12, 24..."/>
-                                 </div>
-                             ) : (
-                                 <div>
-                                    <label className="block text-xs font-bold text-slate-500 mb-1">تاريخ نهاية العقد</label>
-                                    <input type="date" value={newBill.endDate} onChange={e=>setNewBill({...newBill, endDate: e.target.value})} className="w-full p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg dark:text-white focus:border-emerald-500 outline-none"/>
-                                 </div>
-                             )}
+                  <form onSubmit={handleAddBill} className="space-y-4">
+                        {/* Auto-fill from PDF */}
+                        <div className="bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-xl border border-indigo-100 dark:border-indigo-800 mb-4">
+                            <label className="flex items-center justify-between cursor-pointer w-full">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 bg-white dark:bg-indigo-900 rounded-lg flex items-center justify-center text-indigo-500">
+                                        {isParsingBill ? <Loader2 className="animate-spin" size={20}/> : <FileText size={20}/>}
+                                    </div>
+                                    <div className="text-left">
+                                        <h4 className="font-bold text-sm text-indigo-900 dark:text-indigo-200">تعبئة تلقائية من الفاتورة</h4>
+                                        <p className="text-xs text-indigo-600 dark:text-indigo-400">ارفع ملف PDF وسيتم استخراج البيانات</p>
+                                    </div>
+                                </div>
+                                <input type="file" accept=".pdf" onChange={handleBillPdfChange} className="hidden" />
+                                <div className="bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold">رفع</div>
+                            </label>
                         </div>
-                      )}
 
-                      {newBill.type === 'subscription' && (
-                          <div className="bg-slate-50 dark:bg-slate-800/50 p-5 rounded-xl border border-slate-200 dark:border-slate-700 space-y-4 animate-slide-up">
-                              <div>
-                                  <label className="block text-xs font-bold text-slate-500 mb-1">تاريخ التجديد القادم</label>
-                                  <input type="date" className="w-full p-3 border border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500" value={newBill.renewalDate} onChange={e=>setNewBill({...newBill, renewalDate: e.target.value})} />
+                      <div className="grid grid-cols-2 gap-4">
+                          <div className="col-span-2">
+                                <label className="block text-xs font-bold text-slate-500 mb-1">نوع الالتزام</label>
+                                <select 
+                                    className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border-none outline-none dark:text-white"
+                                    value={newBill.type}
+                                    onChange={e => setNewBill({...newBill, type: e.target.value as any})}
+                                >
+                                    <option value="electricity">كهرباء</option>
+                                    <option value="water">مياه</option>
+                                    <option value="internet">انترنت / اتصالات</option>
+                                    <option value="device_installment">أقساط أجهزة (جوالات..)</option>
+                                    <option value="subscription">اشتراك دوري (نتفلكس..)</option>
+                                    <option value="other">أخرى</option>
+                                </select>
+                          </div>
+                          <div className="col-span-2">
+                                <label className="block text-xs font-bold text-slate-500 mb-1">مزود الخدمة / الشركة</label>
+                                <div className="relative">
+                                    <input 
+                                        type="text" required 
+                                        className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border-none outline-none dark:text-white pl-12" 
+                                        placeholder="مثال: STC, Tabby, Tamara..."
+                                        value={newBill.provider}
+                                        onChange={e => setNewBill({...newBill, provider: e.target.value})}
+                                    />
+                                    {newBill.icon && (
+                                        <div className="absolute left-3 top-3 w-6 h-6 rounded-full overflow-hidden border border-slate-200 dark:border-slate-600">
+                                            <img src={newBill.icon} alt="logo" className="w-full h-full object-cover" />
+                                        </div>
+                                    )}
+                                </div>
+                          </div>
+                          
+                          {/* Device Installment Specifics */}
+                          {newBill.type === 'device_installment' && (
+                              <div className="col-span-2">
+                                  <label className="block text-xs font-bold text-slate-500 mb-1">تفاصيل الجهاز</label>
+                                  <input 
+                                      type="text" 
+                                      className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border-none outline-none dark:text-white" 
+                                      placeholder="مثال: iPhone 15 Pro Max"
+                                      value={newBill.deviceDetails}
+                                      onChange={e => setNewBill({...newBill, deviceDetails: e.target.value})}
+                                  />
+                              </div>
+                          )}
+
+                          <div className="col-span-2">
+                              <label className="block text-xs font-bold text-slate-500 mb-1">القسط الشهري (المبلغ)</label>
+                              <div className="relative">
+                                  <input 
+                                      type="number" step="0.01" required 
+                                      className="w-full p-3 pl-12 rounded-xl bg-slate-50 dark:bg-slate-800 border-none outline-none font-bold text-lg dark:text-white" 
+                                      placeholder="0.00"
+                                      value={newBill.amount}
+                                      onChange={e => setNewBill({...newBill, amount: e.target.value})}
+                                  />
+                                  <span className="absolute left-4 top-4 text-slate-400 text-xs font-bold">SAR</span>
                               </div>
                           </div>
-                      )}
 
-                      <div className="flex gap-3 pt-2">
-                          <button type="button" onClick={() => setShowAddBillModal(false)} className="flex-1 text-slate-600 dark:text-slate-300 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl font-bold transition-colors">إلغاء</button>
-                          <button type="submit" className="flex-[2] bg-slate-900 dark:bg-[#bef264] text-white dark:text-slate-900 py-3 rounded-xl font-bold hover:shadow-lg hover:-translate-y-0.5 transition-all flex justify-center items-center gap-2">
-                              <Save size={18} />
-                              <span>حفظ الالتزام</span>
-                          </button>
+                          <div className="col-span-2">
+                              <label className="block text-xs font-bold text-slate-500 mb-1">تاريخ البداية</label>
+                              <input 
+                                  type="date" required 
+                                  className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border-none outline-none dark:text-white" 
+                                  value={newBill.startDate}
+                                  onChange={e => setNewBill({...newBill, startDate: e.target.value})}
+                              />
+                          </div>
+                          
+                          {newBill.type !== 'subscription' && (
+                              <div className="col-span-2 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-100 dark:border-slate-700">
+                                  <div className="flex gap-4 mb-3">
+                                      <label className="flex items-center gap-2 cursor-pointer">
+                                          <input 
+                                              type="radio" name="endDateMode" 
+                                              checked={newBill.endDateMode === 'months'} 
+                                              onChange={() => setNewBill({...newBill, endDateMode: 'months'})} 
+                                          />
+                                          <span className="text-sm dark:text-slate-300">بالأشهر (المدة)</span>
+                                      </label>
+                                      <label className="flex items-center gap-2 cursor-pointer">
+                                          <input 
+                                              type="radio" name="endDateMode" 
+                                              checked={newBill.endDateMode === 'date'} 
+                                              onChange={() => setNewBill({...newBill, endDateMode: 'date'})} 
+                                          />
+                                          <span className="text-sm dark:text-slate-300">بتاريخ النهاية</span>
+                                      </label>
+                                  </div>
+                                  
+                                  {newBill.endDateMode === 'months' ? (
+                                      <div>
+                                          <label className="block text-xs font-bold text-slate-500 mb-1">المدة (شهر)</label>
+                                          <input 
+                                              type="number" 
+                                              className="w-full p-2 rounded-lg bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 outline-none dark:text-white"
+                                              placeholder="12, 24, 36..."
+                                              value={newBill.duration}
+                                              onChange={e => setNewBill({...newBill, duration: e.target.value})}
+                                          />
+                                      </div>
+                                  ) : (
+                                      <div>
+                                          <label className="block text-xs font-bold text-slate-500 mb-1">تاريخ النهاية</label>
+                                          <input 
+                                              type="date" 
+                                              className="w-full p-2 rounded-lg bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 outline-none dark:text-white"
+                                              value={newBill.endDate}
+                                              onChange={e => setNewBill({...newBill, endDate: e.target.value})}
+                                          />
+                                      </div>
+                                  )}
+                              </div>
+                          )}
+
+                          {/* New Fields: Total Debt and Down Payment */}
+                          {(newBill.type === 'device_installment' || newBill.endDateMode === 'months') && (
+                              <>
+                                 <div className="col-span-2 grid grid-cols-2 gap-4">
+                                     <div>
+                                         <label className="block text-xs font-bold text-slate-500 mb-1">الدفعة الأولى (مقدم)</label>
+                                         <input 
+                                              type="number" 
+                                              className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border-none outline-none dark:text-white"
+                                              placeholder="0"
+                                              value={newBill.downPayment}
+                                              onChange={e => setNewBill({...newBill, downPayment: e.target.value})}
+                                         />
+                                     </div>
+                                     <div>
+                                         <label className="block text-xs font-bold text-slate-500 mb-1">إجمالي العقد/الدين</label>
+                                         <input 
+                                              type="number" 
+                                              className="w-full p-3 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 outline-none font-bold text-indigo-700 dark:text-indigo-300"
+                                              placeholder="يحسب تلقائياً"
+                                              value={newBill.totalDebt}
+                                              onChange={e => setNewBill({...newBill, totalDebt: e.target.value})}
+                                         />
+                                     </div>
+                                 </div>
+                                 <div className="col-span-2">
+                                     <button 
+                                        type="button"
+                                        onClick={() => handleOpenScheduleEditor('bill')}
+                                        className="w-full py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                                     >
+                                         <ListChecks size={16}/>
+                                         تخصيص الدفعات يدوياً
+                                     </button>
+                                     <p className="text-[10px] text-slate-400 mt-1 text-center">يمكنك تعديل مبلغ كل شهر على حدة</p>
+                                 </div>
+                              </>
+                          )}
+                          
+                          {/* Subscription Specifics */}
+                          {newBill.type === 'subscription' && (
+                              <div className="col-span-2">
+                                  <label className="block text-xs font-bold text-slate-500 mb-1">تاريخ التجديد القادم</label>
+                                  <input 
+                                      type="date" 
+                                      className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border-none outline-none dark:text-white" 
+                                      value={newBill.renewalDate}
+                                      onChange={e => setNewBill({...newBill, renewalDate: e.target.value})}
+                                  />
+                              </div>
+                          )}
                       </div>
+
+                      <button type="submit" disabled={isProcessing} className="w-full bg-slate-900 dark:bg-[#bef264] text-white dark:text-slate-900 py-4 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2">
+                          {isProcessing ? <Loader2 className="animate-spin" /> : <Save size={18} />}
+                          {editingBillId ? 'تحديث الفاتورة' : 'حفظ الفاتورة'}
+                      </button>
                   </form>
               </div>
           </div>
       )}
-      
-      {/* Smart Import Modal */}
-      {showSmartModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-              <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg p-6 animate-scale-in">
-                  <div className="flex justify-between items-center mb-4">
-                      <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2"><Wand2 className="text-indigo-500"/> استيراد ذكي</h3>
-                      <button onClick={() => setShowSmartModal(false)} className="text-slate-400 hover:text-slate-600"><X size={20}/></button>
+
+      {/* Manual Schedule Editor Modal (Shared for Loan and Bill) */}
+      {showScheduleEditor && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in">
+              <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-3xl p-6 shadow-2xl animate-scale-in max-h-[90vh] flex flex-col">
+                   <div className="flex justify-between items-center mb-4">
+                      <h3 className="font-bold text-lg text-slate-900 dark:text-white">تعديل جدول الدفعات</h3>
+                      <button onClick={() => setShowScheduleEditor(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-500"><X size={20}/></button>
                   </div>
                   
-                  <div className="bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-xl mb-4 text-sm text-indigo-800 dark:text-indigo-200">
-                      ألصق نص تفاصيل القرض من رسالة البنك أو تطبيق البنك هنا، وسيقوم النظام بتعبئة البيانات تلقائياً.
+                  <div className="bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-xl mb-4 border border-indigo-100 dark:border-indigo-800">
+                      <p className="text-xs text-indigo-800 dark:text-indigo-300 mb-2 font-bold">تطبيق مبلغ موحد على الجميع</p>
+                      <div className="flex gap-2">
+                          <input type="number" id="applyAllAmount" className="flex-1 p-2 rounded-lg border border-indigo-200 dark:border-indigo-700 outline-none text-sm dark:bg-slate-800 dark:text-white" placeholder="المبلغ..." />
+                          <button 
+                            type="button" 
+                            onClick={() => {
+                                const val = parseFloat((document.getElementById('applyAllAmount') as HTMLInputElement).value);
+                                if (val > 0) applyToAll(val);
+                            }}
+                            className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-indigo-700"
+                          >
+                              تطبيق
+                          </button>
+                      </div>
                   </div>
 
-                  <textarea 
-                      autoFocus
-                      className="w-full h-40 p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 mb-4 text-slate-900 dark:text-white text-sm"
-                      placeholder={`مثال:\nمبلغ التمويل: 100,000\nالقسط الشهري: 2,500\nالمدة: 60 شهر\nتاريخ البداية: 2024-01-01`}
-                      value={smartText}
-                      onChange={e => setSmartText(e.target.value)}
-                  />
+                  <div className="flex-1 overflow-y-auto space-y-2 pr-2">
+                      {manualSchedule.map((item, idx) => (
+                          <div key={idx} className="flex items-center gap-3 p-2 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-lg">
+                              <span className="text-xs text-slate-500 w-8 font-bold">{idx + 1}</span>
+                              <span className="text-xs text-slate-400 w-24">{new Date(item.date).toLocaleDateString('en-GB')}</span>
+                              <input 
+                                  type="number" 
+                                  value={item.amount} 
+                                  onChange={(e) => updateManualInstallment(idx, parseFloat(e.target.value))}
+                                  className="flex-1 p-1 bg-transparent border-b border-slate-300 dark:border-slate-600 outline-none font-bold text-slate-800 dark:text-white text-center"
+                              />
+                              <span className="text-xs text-slate-400">SAR</span>
+                          </div>
+                      ))}
+                  </div>
 
-                  <button 
-                      onClick={handleSmartImport}
-                      disabled={isParsing || !smartText}
-                      className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-indigo-700 transition-colors disabled:opacity-70"
-                  >
-                      {isParsing ? <Loader2 className="animate-spin" size={20} /> : <Sparkles size={20} />}
-                      {isParsing ? 'جاري التحليل...' : 'تحليل واستيراد'}
-                  </button>
+                  <div className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                      <div>
+                          <p className="text-xs text-slate-500">الإجمالي الجديد</p>
+                          <p className="font-bold text-lg text-slate-900 dark:text-white">{manualSchedule.reduce((a,c)=>a+c.amount,0).toFixed(2)}</p>
+                      </div>
+                      <button onClick={confirmManualSchedule} className="bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-emerald-700 transition-colors">
+                          اعتماد الجدول
+                      </button>
+                  </div>
               </div>
           </div>
       )}
-
-      {/* Manual Schedule Editor Modal */}
-      {showScheduleEditor && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-            <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-3xl p-6 shadow-2xl animate-scale-in max-h-[80vh] flex flex-col">
-                <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-bold text-lg text-slate-900 dark:text-white">تخصيص الدفعات يدوياً</h3>
-                    <button onClick={() => setShowScheduleEditor(false)} className="text-slate-400"><X size={20}/></button>
+      
+      {/* Add Loan Modal (Restored) */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+             <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-3xl p-6 shadow-2xl animate-scale-in max-h-[90vh] overflow-y-auto">
+                <div className="flex justify-between items-center mb-6 border-b border-slate-100 dark:border-slate-800 pb-4">
+                    <h3 className="font-bold text-xl text-slate-800 dark:text-white">
+                        {isEditing ? 'تعديل القرض / الالتزام' : 'إضافة قرض جديد'}
+                    </h3>
+                    <button onClick={() => setShowAddModal(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-500">
+                        <X size={24}/>
+                    </button>
                 </div>
+                
+                <form onSubmit={handleAddLoan} className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="col-span-2">
+                             <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">جهة التمويل</label>
+                             <div className="relative">
+                                <input 
+                                    type="text" required 
+                                    list="lenders"
+                                    className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border-none focus:ring-2 focus:ring-emerald-500 outline-none text-slate-900 dark:text-white font-bold"
+                                    placeholder="اختر أو اكتب اسم البنك..."
+                                    value={newLoan.name}
+                                    onChange={e => setNewLoan({...newLoan, name: e.target.value})}
+                                />
+                                <datalist id="lenders">
+                                    {SAUDI_LENDERS.map(l => <option key={l} value={l} />)}
+                                </datalist>
+                             </div>
+                        </div>
 
-                <div className="flex gap-2 mb-4">
-                    <input type="number" id="applyAllInput" placeholder="مبلغ لتعميمه" className="flex-1 p-2 bg-slate-50 dark:bg-slate-800 border rounded-lg outline-none text-sm"/>
-                    <button onClick={() => {
-                        const val = parseFloat((document.getElementById('applyAllInput') as HTMLInputElement).value);
-                        if (val) applyToAll(val);
-                    }} className="bg-slate-200 dark:bg-slate-700 px-3 py-2 rounded-lg text-xs font-bold">تطبيق على الكل</button>
-                </div>
-
-                <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-                    {manualSchedule.map((item, idx) => (
-                        <div key={idx} className="flex items-center gap-3 text-sm border-b border-slate-50 dark:border-slate-800 pb-2">
-                            <span className="w-8 text-slate-400">#{idx+1}</span>
-                            <span className="w-24 text-slate-600 dark:text-slate-300 text-xs">{item.date}</span>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">إجمالي المبلغ (شامل الأرباح)</label>
                             <input 
-                                type="number" 
-                                value={item.amount} 
-                                onChange={(e) => updateManualInstallment(idx, parseFloat(e.target.value))}
-                                className="flex-1 p-2 bg-slate-50 dark:bg-slate-800 border rounded-lg outline-none font-bold text-emerald-600 dark:text-emerald-400 text-center"
+                                type="text" required 
+                                className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border-none focus:ring-2 focus:ring-emerald-500 outline-none text-slate-900 dark:text-white font-bold text-lg"
+                                placeholder="0.00"
+                                value={newLoan.amount}
+                                onChange={e => setNewLoan({...newLoan, amount: e.target.value})}
                             />
                         </div>
-                    ))}
-                </div>
 
-                <div className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center">
-                    <div>
-                        <p className="text-xs text-slate-400">المجموع الكلي</p>
-                        <p className="font-bold text-lg text-slate-900 dark:text-white">{manualSchedule.reduce((a,b)=>a+b.amount,0).toLocaleString('en-US')}</p>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">إجمالي الربح (اختياري)</label>
+                            <input 
+                                type="text"
+                                className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border-none focus:ring-2 focus:ring-emerald-500 outline-none text-slate-900 dark:text-white"
+                                placeholder="0.00"
+                                value={newLoan.rate}
+                                onChange={e => setNewLoan({...newLoan, rate: e.target.value})}
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">المدة (أشهر)</label>
+                            <input 
+                                type="number" required 
+                                className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border-none focus:ring-2 focus:ring-emerald-500 outline-none text-slate-900 dark:text-white"
+                                placeholder="60"
+                                value={newLoan.duration}
+                                onChange={e => setNewLoan({...newLoan, duration: e.target.value})}
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">تاريخ البداية</label>
+                            <input 
+                                type="date" required 
+                                className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border-none focus:ring-2 focus:ring-emerald-500 outline-none text-slate-900 dark:text-white"
+                                value={newLoan.startDate}
+                                onChange={e => setNewLoan({...newLoan, startDate: e.target.value})}
+                            />
+                        </div>
                     </div>
-                    <button onClick={confirmManualSchedule} className="bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-emerald-700">اعتماد الجدول</button>
-                </div>
-            </div>
+
+                    <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-100 dark:border-slate-700">
+                         <div className="flex justify-between items-center mb-2">
+                             <h4 className="font-bold text-sm text-slate-700 dark:text-slate-300">خيارات متقدمة</h4>
+                             <button type="button" onClick={() => handleOpenScheduleEditor('loan')} className="text-xs bg-indigo-50 text-indigo-600 px-2 py-1 rounded hover:bg-indigo-100">تخصيص الدفعات يدوياً</button>
+                         </div>
+                         <div className="grid grid-cols-2 gap-4">
+                             <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">الدفعة الأخيرة (إن وجدت)</label>
+                                <input type="number" className="w-full p-2 rounded-lg bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 outline-none" placeholder="0.00" value={newLoan.lastPaymentAmount} onChange={e => setNewLoan({...newLoan, lastPaymentAmount: e.target.value})} />
+                             </div>
+                             <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">مبلغ تم سداده مسبقاً</label>
+                                <input type="number" className="w-full p-2 rounded-lg bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 outline-none" placeholder="0.00" value={newLoan.initialPaidAmount} onChange={e => setNewLoan({...newLoan, initialPaidAmount: e.target.value})} />
+                             </div>
+                         </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">أيقونة</label>
+                        <IconPicker selected={newLoan.icon} onSelect={(icon) => setNewLoan({...newLoan, icon})} />
+                    </div>
+
+                    <div className="flex gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+                         {isEditing && (
+                             <button type="button" onClick={handleDeleteLoan} disabled={isDeleting} className="px-4 py-3 bg-rose-50 text-rose-600 rounded-xl font-bold hover:bg-rose-100 transition-colors">
+                                 {isDeleting ? <Loader2 className="animate-spin"/> : <Trash2 size={20}/>}
+                             </button>
+                         )}
+                        <button type="submit" disabled={isProcessing} className="flex-1 bg-slate-900 dark:bg-[#bef264] text-white dark:text-slate-900 py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2">
+                            {isProcessing ? <Loader2 className="animate-spin" /> : <Save size={18}/>}
+                            {isEditing ? 'حفظ التغييرات' : 'إضافة القرض'}
+                        </button>
+                    </div>
+                </form>
+             </div>
+        </div>
+      )}
+
+      {/* Payment Modal (Shared) */}
+      {paymentModal.isOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+             <div className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-scale-in">
+                 <div className="text-center mb-6">
+                     <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${paymentModal.type === 'refund' ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                         {paymentModal.type === 'refund' ? <RotateCcw size={32}/> : <CheckCircle size={32}/>}
+                     </div>
+                     <h3 className="font-bold text-xl text-slate-900 dark:text-white">{paymentModal.title}</h3>
+                     <p className="text-sm text-slate-500 mt-1">{paymentModal.amount.toLocaleString('en-US')} SAR</p>
+                 </div>
+                 
+                 <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-xl mb-6">
+                     <label className="block text-xs font-bold text-slate-500 mb-2">
+                        {paymentModal.type === 'refund' ? 'استرجاع إلى' : 'خصم من'}
+                     </label>
+                     <select 
+                        className="w-full p-2 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg outline-none text-sm"
+                        value={selectedPaymentCardId}
+                        onChange={e => setSelectedPaymentCardId(e.target.value)}
+                     >
+                         {settings.cards.map(c => (
+                             <option key={c.id} value={c.id}>{c.bankName} - {c.cardNumber} ({c.balance?.toLocaleString()} SAR)</option>
+                         ))}
+                         <option value="cash">نقدي / أخرى</option>
+                     </select>
+                 </div>
+
+                 <div className="flex gap-3">
+                     <button onClick={() => setPaymentModal({...paymentModal, isOpen: false})} className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl font-bold">إلغاء</button>
+                     <button onClick={confirmPayment} disabled={isProcessing} className="flex-1 py-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl font-bold flex justify-center items-center gap-2">
+                         {isProcessing && <Loader2 className="animate-spin" size={16}/>}
+                         {paymentModal.type === 'refund' ? 'تأكيد التراجع' : 'تأكيد السداد'}
+                     </button>
+                 </div>
+             </div>
         </div>
       )}
       
-      {/* Add Loan Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-start md:items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl p-4 md:p-6 animate-scale-in my-4 md:my-8">
-            <div className="flex justify-between items-center mb-6 border-b border-slate-100 dark:border-slate-800 pb-4">
-               <h3 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                 {isEditing ? <Edit3 size={24}/> : <Plus size={24}/>}
-                 {isEditing ? 'تعديل تفاصيل القرض' : 'إضافة قرض جديد'}
-               </h3>
-               <button onClick={() => {setShowAddModal(false); setIsEditing(false); setEditingLoanId(null);}} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
-                 <X size={24} />
-               </button>
-            </div>
-
-            <form onSubmit={handleAddLoan} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 {/* Basic Info */}
-                 <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">جهة التمويل</label>
-                      <div className="relative">
-                          <input 
-                            list="lenders" 
-                            required
-                            type="text" 
-                            className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none transition-all dark:text-white"
-                            placeholder="مثال: مصرف الراجحي"
-                            value={selectedLender || newLoan.name}
-                            onChange={(e) => { setSelectedLender(e.target.value); setNewLoan({...newLoan, name: e.target.value}); }}
-                          />
-                          <datalist id="lenders">
-                              {SAUDI_LENDERS.map(l => <option key={l} value={l} />)}
-                          </datalist>
-                      </div>
-                    </div>
-                    
-                    <div>
-                        <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">نوع التمويل</label>
-                        <select 
-                            className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none transition-all dark:text-white"
-                            value={selectedCategory}
-                            onChange={(e) => { setSelectedCategory(e.target.value); setNewLoan({...newLoan, description: e.target.value}); }}
-                        >
-                            <option value="">اختر النوع...</option>
-                            {LOAN_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">إجمالي مبلغ السداد (شامل الأرباح)</label>
-                      <div className="relative">
-                        <input 
-                          type="text" 
-                          required
-                          className="w-full p-3 pl-12 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-lg font-bold dark:text-white"
-                          placeholder="0.00"
-                          value={newLoan.amount}
-                          onChange={(e) => setNewLoan({...newLoan, amount: e.target.value})}
-                        />
-                        <span className="absolute left-4 top-3.5 text-slate-400 font-bold text-sm">SAR</span>
-                      </div>
-                      <p className="text-[10px] text-slate-400 mt-1">المبلغ الكلي الذي ستدفعه للبنك بنهاية المدة.</p>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">أيقونة رمزية (اختياري)</label>
-                      <IconPicker selected={newLoan.icon} onSelect={(icon) => setNewLoan({...newLoan, icon})} />
-                    </div>
+      {/* Smart Import Modal */}
+      {showSmartModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+             <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-3xl p-6 shadow-2xl animate-scale-in">
+                 <div className="flex justify-between items-center mb-4">
+                     <h3 className="font-bold text-xl text-slate-800 dark:text-white flex items-center gap-2"><Sparkles className="text-indigo-500"/> استيراد ذكي</h3>
+                     <button onClick={() => setShowSmartModal(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-500"><X size={20}/></button>
                  </div>
-
-                 {/* Terms Info */}
                  <div className="space-y-4">
-                    <div>
-                        <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">مبلغ الربح / الرسوم (الإجمالي)</label>
-                        <div className="relative">
-                            <input 
-                              type="text" 
-                              className="w-full p-3 pl-12 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-lg font-bold dark:text-white"
-                              placeholder="0.00"
-                              value={newLoan.rate}
-                              onChange={(e) => setNewLoan({...newLoan, rate: e.target.value})}
-                            />
-                            <span className="absolute left-4 top-3.5 text-slate-400 font-bold text-sm">SAR</span>
-                        </div>
-                        <p className="text-[10px] text-slate-400 mt-1">إجمالي الأرباح التي سيأخذها البنك (أو رسوم التمويل).</p>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">المدة (شهر)</label>
-                          <input 
-                            type="number" 
-                            required
-                            className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-lg font-bold dark:text-white"
-                            placeholder="60"
-                            value={newLoan.duration}
-                            onChange={(e) => {
-                                setNewLoan({...newLoan, duration: e.target.value});
-                                if (manualSchedule.length > 0) setManualSchedule([]); // Reset manual if duration changes
-                            }}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">بداية القسط</label>
-                          <input 
-                            type="date" 
-                            required
-                            className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none dark:text-white"
-                            value={newLoan.startDate}
-                            onChange={(e) => setNewLoan({...newLoan, startDate: e.target.value})}
-                          />
-                        </div>
-                    </div>
-                    
-                    {/* Manual Schedule Button */}
-                    {newLoan.duration && parseInt(newLoan.duration) > 0 && (
-                        <button 
-                            type="button" 
-                            onClick={() => {
-                                if (manualSchedule.length === 0) {
-                                    // Pre-fill with evenly distributed amounts
-                                    const total = parseFloat(newLoan.amount.replace(/,/g,'')) || 0;
-                                    const months = parseInt(newLoan.duration);
-                                    const monthly = total / months;
-                                    const start = new Date(newLoan.startDate);
-                                    const drafts = Array.from({length: months}).map((_, i) => {
-                                        const d = new Date(start);
-                                        d.setMonth(start.getMonth() + i);
-                                        return {
-                                            date: d.toISOString().split('T')[0],
-                                            amount: parseFloat(monthly.toFixed(2))
-                                        };
-                                    });
-                                    setManualSchedule(drafts);
-                                }
-                                handleOpenScheduleEditor();
-                            }}
-                            className="w-full py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg text-sm font-bold hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center justify-center gap-2 border border-slate-200 dark:border-slate-700"
-                        >
-                            <ListChecks size={16}/> {manualSchedule.length > 0 ? 'تعديل الجدول اليدوي' : 'تخصيص الدفعات يدوياً'}
-                        </button>
-                    )}
+                     <div>
+                         <label className="block text-sm font-bold text-slate-600 dark:text-slate-300 mb-2">لصق نص من تطبيق البنك / العقد</label>
+                         <textarea 
+                             className="w-full h-32 p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white text-sm"
+                             placeholder="مثال: تمويل شخصي بمبلغ 100,000 ريال، القسط الشهري 1,850 ريال..."
+                             value={smartText}
+                             onChange={e => setSmartText(e.target.value)}
+                         />
+                     </div>
+                     <div className="flex items-center gap-2 text-xs text-slate-400">
+                         <span className="bg-slate-200 dark:bg-slate-700 w-full h-[1px]"></span>
+                         <span>أو</span>
+                         <span className="bg-slate-200 dark:bg-slate-700 w-full h-[1px]"></span>
+                     </div>
+                     <div>
+                         <label className="flex items-center justify-center w-full h-16 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                             <div className="flex items-center gap-2 text-slate-500">
+                                 <UploadCloud size={20}/>
+                                 <span className="text-sm font-bold">رفع صورة العقد / الجدول (PDF/Image)</span>
+                             </div>
+                             <input type="file" className="hidden" accept="image/*,.pdf" onChange={handleFileChange} />
+                         </label>
+                         {fileName && <p className="text-xs text-emerald-600 mt-2 text-center font-bold">{fileName}</p>}
+                     </div>
+                     <button 
+                         onClick={handleSmartImport}
+                         disabled={isParsing || (!smartText && !newLoan.contractPdf)}
+                         className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold shadow-lg hover:bg-indigo-700 transition-colors disabled:opacity-70 flex items-center justify-center gap-2"
+                     >
+                         {isParsing ? <Loader2 className="animate-spin"/> : <Wand2 size={18}/>}
+                         {isParsing ? 'جاري التحليل...' : 'تحليل واستخراج البيانات'}
+                     </button>
                  </div>
-              </div>
-              
-              {/* Advanced Fields Toggle */}
-              <div className="border-t border-slate-100 dark:border-slate-800 pt-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div>
-                          <label className="block text-xs font-bold text-slate-500 mb-1">المبلغ المدفوع مسبقاً (إن وجد)</label>
-                          <input 
-                            type="number"
-                            step="0.01" 
-                            className="w-full p-2 bg-slate-50 dark:bg-slate-800 border rounded-lg outline-none text-sm dark:text-white dark:border-slate-700"
-                            placeholder="مثال: 5000"
-                            value={newLoan.initialPaidAmount}
-                            onChange={(e) => setNewLoan({...newLoan, initialPaidAmount: e.target.value})}
-                          />
-                      </div>
-                      <div>
-                          <label className="block text-xs font-bold text-slate-500 mb-1">قيمة القسط الشهري (مخصص)</label>
-                          <input 
-                            type="number"
-                            step="0.01" 
-                            className="w-full p-2 bg-slate-50 dark:bg-slate-800 border rounded-lg outline-none text-sm dark:text-white dark:border-slate-700"
-                            placeholder="مثال: 2450.50"
-                            value={newLoan.customMonthlyPayment}
-                            onChange={(e) => setNewLoan({...newLoan, customMonthlyPayment: e.target.value})}
-                          />
-                      </div>
-                      <div>
-                          <label className="block text-xs font-bold text-slate-500 mb-1">الدفعة الأخيرة (إن وجدت)</label>
-                          <input 
-                            type="number"
-                            step="0.01" 
-                            className="w-full p-2 bg-slate-50 dark:bg-slate-800 border rounded-lg outline-none text-sm dark:text-white dark:border-slate-700"
-                            placeholder="مثال: 35000"
-                            value={newLoan.lastPaymentAmount}
-                            onChange={(e) => setNewLoan({...newLoan, lastPaymentAmount: e.target.value})}
-                          />
-                      </div>
-                  </div>
-              </div>
-
-              {/* Upload Contract */}
-              <div className="p-4 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800/50 text-center relative group hover:border-emerald-400 transition-colors">
-                  <input type="file" onChange={handleFileChange} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10" />
-                  <div className="flex flex-col items-center justify-center gap-2">
-                     <UploadCloud className="text-slate-400 group-hover:text-emerald-500 transition-colors" size={32} />
-                     <p className="text-sm font-bold text-slate-600 dark:text-slate-300">ارفع عقد التمويل (PDF/Image)</p>
-                     <p className="text-xs text-slate-400">{fileName || 'اختياري: للحفظ بالأرشيف فقط'}</p>
-                  </div>
-              </div>
-
-              <button 
-                type="submit" 
-                disabled={isProcessing}
-                className="w-full bg-slate-900 dark:bg-[#bef264] text-white dark:text-slate-900 py-4 rounded-xl font-bold text-lg hover:shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-70"
-              >
-                {isProcessing ? <Loader2 className="animate-spin" /> : <Save size={20} />}
-                <span>{isEditing ? 'تحديث القرض' : 'حفظ القرض'}</span>
-              </button>
-            </form>
-          </div>
+             </div>
         </div>
       )}
 

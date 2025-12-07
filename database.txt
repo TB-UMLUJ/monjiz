@@ -1,4 +1,5 @@
 
+
 -- Smart Database Schema for Monjez App (PostgreSQL)
 -- This script is Idempotent.
 
@@ -134,6 +135,10 @@ ALTER TABLE public.bills ADD COLUMN IF NOT EXISTS renewal_date DATE;
 ALTER TABLE public.bills ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'active'; 
 ALTER TABLE public.bills ADD COLUMN IF NOT EXISTS icon TEXT;
 ALTER TABLE public.bills ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+-- New Columns for Bill Management
+ALTER TABLE public.bills ADD COLUMN IF NOT EXISTS total_debt DECIMAL(12, 2);
+ALTER TABLE public.bills ADD COLUMN IF NOT EXISTS paid_dates JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.bills ADD COLUMN IF NOT EXISTS custom_schedule JSONB DEFAULT '[]'::jsonb;
 
 -- FINANCIAL GOALS
 CREATE TABLE IF NOT EXISTS public.financial_goals (
@@ -177,3 +182,6 @@ ALTER TABLE public.bills ALTER COLUMN icon TYPE TEXT;
 ALTER TABLE public.financial_goals ALTER COLUMN icon TYPE TEXT;
 ALTER TABLE public.custom_categories ALTER COLUMN icon TYPE TEXT;
 ALTER TABLE public.income_sources ADD COLUMN IF NOT EXISTS details JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE public.bills ADD COLUMN IF NOT EXISTS total_debt DECIMAL(12, 2);
+ALTER TABLE public.bills ADD COLUMN IF NOT EXISTS paid_dates JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.bills ADD COLUMN IF NOT EXISTS custom_schedule JSONB DEFAULT '[]'::jsonb;

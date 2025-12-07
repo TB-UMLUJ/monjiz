@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import { Transaction, TransactionType, UserSettings } from '../types';
 import { storageService } from '../services/storage';
@@ -43,7 +44,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
 
   const categories = [
     'طعام', 'نقل', 'سكن', 'فواتير وخدمات', 'تسوق', 'ترفيه', 'صحة', 'تعليم', 
-    'راتب', 'استثمار', 'تحويل بنكي', 'استلام أموال', 'رسوم بنكية', 'أخرى'
+    'راتب', 'استثمار', 'تحويل بنكي', 'استلام أموال', 'رسوم بنكية', 'سداد بطاقة', 'أخرى'
   ];
 
   const resetForm = () => {
@@ -189,10 +190,16 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
              const currentBal = card.balance || 0;
              let newBalance = currentBal;
 
-             if (parsed.type === TransactionType.EXPENSE) {
-                 newBalance -= (mainAmount + feeAmount);
+             if (parsed.newBalance !== undefined) {
+                 // Use exact balance from SMS
+                 newBalance = parsed.newBalance;
              } else {
-                 newBalance += mainAmount - feeAmount;
+                 // Fallback to calculation
+                 if (parsed.type === TransactionType.EXPENSE) {
+                     newBalance -= (mainAmount + feeAmount);
+                 } else {
+                     newBalance += mainAmount - feeAmount;
+                 }
              }
 
              updatedCards[cardIndex] = { ...card, balance: newBalance };
@@ -207,7 +214,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
             type: parsed.type,
             category: parsed.category,
             date: parsed.date || new Date().toISOString(),
-            note: `من: ${parsed.merchant}`,
+            note: `من: ${parsed.merchant}`, // Use "From:" as requested
             cardId: matchedCardId || undefined
          };
          await storageService.saveTransaction(newTx);
@@ -231,9 +238,9 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
          setShowSmartModal(false);
          setSmartSmsText('');
 
-         let successMessage = `تم إضافة ${parsed.type === 'expense' ? 'مصروف' : 'دخل'} على ${cardName}`;
-         if (feeAmount > 0) {
-             successMessage += ` مع رسوم ${feeAmount} ريال.`;
+         let successMessage = `تم إضافة العملية على ${cardName}`;
+         if (parsed.newBalance !== undefined) {
+             successMessage += ` وتحديث الرصيد إلى ${parsed.newBalance}`;
          }
          notify(successMessage, 'success');
 
@@ -598,18 +605,18 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
                   <div className="bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-xl mb-4 text-sm text-indigo-800 dark:text-indigo-300 flex flex-col gap-2">
                       <div className="flex gap-3">
                          <Wand2 className="shrink-0" size={20}/>
-                         <p>ألصق نص الرسالة البنكية هنا، وسيقوم النظام تلقائياً بتحديد النوع (مصروف/دخل)، التصنيف، المبلغ، والتاريخ.</p>
+                         <p>ألصق نص الرسالة البنكية هنا (شراء، إيداع، سداد بطاقة)، وسيقوم النظام تلقائياً بتحديد النوع واستخراج الرصيد.</p>
                       </div>
                       <div className="flex gap-3 text-xs opacity-75 mt-1">
                           <CreditCard className="shrink-0" size={16}/>
-                          <p>سيتم أيضاً تحديث رصيد البطاقة المطابقة تلقائياً إذا وجدت.</p>
+                          <p>سيتم تحديث رصيد البطاقة المطابقة تلقائياً بالرصيد الجديد الموجود في الرسالة (إن وجد).</p>
                       </div>
                   </div>
 
                   <textarea 
                       autoFocus
                       className="w-full h-32 p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 mb-4 text-slate-900 dark:text-white"
-                      placeholder="مثال: تم خصم مبلغ 120 ريال من حسابك لدى مطعم..."
+                      placeholder="مثال: بطاقة ائتمانية:سداد مبلغ:320 رصيد:367.69..."
                       value={smartSmsText}
                       onChange={e => setSmartSmsText(e.target.value)}
                   />
