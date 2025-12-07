@@ -59,19 +59,35 @@ export const storageService = {
       category: t.category,
       date: t.date,
       note: t.note,
-      cardId: t.card_id
+      cardId: t.card_id,
+      merchant: t.merchant,
+      fee: t.fee ? Number(t.fee) : 0,
+      balanceAfter: t.balance_after ? Number(t.balance_after) : undefined,
+      transactionReference: t.transaction_reference,
+      operationKind: t.operation_kind,
+      cardLast4: t.card_last4,
+      country: t.country,
+      paymentMethod: t.payment_method
     }));
   },
 
   saveTransaction: async (transaction: Transaction): Promise<Transaction[]> => {
     const payload = {
         user_id: DEFAULT_USER_ID,
-        amount: transaction.amount,
+        amount: safeNumber(transaction.amount),
         type: transaction.type,
         category: transaction.category,
         note: transaction.note,
         date: transaction.date,
-        card_id: (transaction.cardId && transaction.cardId !== '') ? transaction.cardId : null
+        card_id: (transaction.cardId && transaction.cardId !== '') ? transaction.cardId : null,
+        merchant: transaction.merchant || null,
+        fee: safeNumber(transaction.fee),
+        balance_after: transaction.balanceAfter ? safeNumber(transaction.balanceAfter) : null,
+        transaction_reference: transaction.transactionReference || null,
+        operation_kind: transaction.operationKind || null,
+        card_last4: transaction.cardLast4 || null,
+        country: transaction.country || null,
+        payment_method: transaction.paymentMethod || null
     };
 
     // Verify card exists if cardId is provided to avoid FK violation
@@ -100,12 +116,20 @@ export const storageService = {
 
   updateTransaction: async (updatedTx: Transaction): Promise<Transaction[]> => {
     const payload = {
-        amount: updatedTx.amount,
+        amount: safeNumber(updatedTx.amount),
         category: updatedTx.category,
         type: updatedTx.type,
         note: updatedTx.note,
         date: updatedTx.date,
-        card_id: (updatedTx.cardId && updatedTx.cardId !== '') ? updatedTx.cardId : null
+        card_id: (updatedTx.cardId && updatedTx.cardId !== '') ? updatedTx.cardId : null,
+        merchant: updatedTx.merchant || null,
+        fee: safeNumber(updatedTx.fee),
+        balance_after: updatedTx.balanceAfter ? safeNumber(updatedTx.balanceAfter) : null,
+        transaction_reference: updatedTx.transactionReference || null,
+        operation_kind: updatedTx.operationKind || null,
+        card_last4: updatedTx.cardLast4 || null,
+        country: updatedTx.country || null,
+        payment_method: updatedTx.paymentMethod || null
     };
 
     const { error } = await supabase

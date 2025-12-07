@@ -258,50 +258,72 @@ const Dashboard: React.FC<DashboardProps> = ({
       }
 
       // 2. Find matching card
-      let targetCardIndex = settings.cards.findIndex(c => c.cardNumber.endsWith(parsedData.cardLast4));
+      let targetCardIndex = -1;
+      if (parsedData.cardLast4) {
+          const cleanLast4 = parsedData.cardLast4.replace(/\D/g, '');
+          targetCardIndex = settings.cards.findIndex(c => 
+              (c.cardNumber && c.cardNumber.endsWith(cleanLast4)) || 
+              (c.accountLast4 && c.accountLast4.endsWith(cleanLast4))
+          );
+      }
       
       // Fallback to first card if not found, but warn user
-      if (targetCardIndex === -1) {
+      if (targetCardIndex === -1 && settings.cards.length > 0) {
         targetCardIndex = 0; // Default to first card
-        notify(`لم يتم العثور على بطاقة تنتهي بـ ${parsedData.cardLast4}، تم استخدام البطاقة الافتراضية`, 'warning');
+        if (parsedData.cardLast4) {
+             notify(`لم يتم العثور على بطاقة تنتهي بـ ${parsedData.cardLast4}، تم استخدام البطاقة الافتراضية`, 'warning');
+        }
       }
 
-      const targetCard = settings.cards[targetCardIndex];
+      const targetCard = targetCardIndex >= 0 ? settings.cards[targetCardIndex] : undefined;
 
-      // 3. Create Transaction
+      // 3. Create Transaction with Enhanced Fields
       const newTx: Transaction = {
         id: '',
         amount: parsedData.amount,
         type: parsedData.type,
         category: parsedData.category,
         date: parsedData.date || new Date().toISOString(),
-        note: `من: ${parsedData.merchant}`
+        note: `من: ${parsedData.merchant}`,
+        merchant: parsedData.merchant,
+        fee: parsedData.fee,
+        balanceAfter: parsedData.newBalance || undefined,
+        transactionReference: parsedData.transactionReference,
+        cardId: targetCard ? targetCard.id : undefined,
+        // Map new fields
+        operationKind: parsedData.operationKind,
+        cardLast4: parsedData.cardLast4,
+        country: parsedData.country,
+        paymentMethod: parsedData.paymentMethod
       };
 
       // 4. Update Balance
-      let newBalance = targetCard.balance || 0;
+      if (targetCard) {
+        let newBalance = targetCard.balance || 0;
 
-      if (parsedData.newBalance !== undefined) {
-         // Use the balance directly from SMS
-         newBalance = parsedData.newBalance;
-      } else {
-         // Fallback calculation
-         if (parsedData.type === TransactionType.EXPENSE) {
-             newBalance -= parsedData.amount;
-         } else {
-             newBalance += parsedData.amount;
-         }
+        if (parsedData.newBalance !== undefined && parsedData.newBalance !== null) {
+           // Use the balance directly from SMS
+           newBalance = parsedData.newBalance;
+        } else {
+           // Fallback calculation if not present in SMS
+           if (parsedData.type === TransactionType.EXPENSE) {
+               newBalance -= parsedData.amount;
+               if (parsedData.fee) newBalance -= parsedData.fee;
+           } else {
+               newBalance += parsedData.amount;
+           }
+        }
+
+        const updatedCards = [...settings.cards];
+        updatedCards[targetCardIndex] = { ...targetCard, balance: newBalance };
+        const updatedSettings = { ...settings, cards: updatedCards };
+        
+        // Save Settings
+        const savedSettings = await storageService.saveSettings(updatedSettings);
+        setSettings(savedSettings);
       }
 
-      const updatedCards = [...settings.cards];
-      updatedCards[targetCardIndex] = { ...targetCard, balance: newBalance };
-      
-      const updatedSettings = { ...settings, cards: updatedCards };
-
-      // 5. Save Everything
-      const savedSettings = await storageService.saveSettings(updatedSettings);
-      setSettings(savedSettings);
-
+      // 5. Save Transaction
       await storageService.saveTransaction(newTx);
 
       const freshTransactions = await storageService.getTransactions();

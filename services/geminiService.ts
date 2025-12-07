@@ -1,3 +1,5 @@
+
+
 import { GoogleGenAI } from "@google/genai";
 import { Transaction, Loan, TransactionType, LoanType } from "../types";
 
@@ -107,11 +109,15 @@ export interface ParsedSMS {
   amount: number;
   merchant: string;
   category: string;
-  cardLast4: string;
+  cardLast4?: string;
   date: string;
   type: TransactionType;
   fee?: number;
   newBalance?: number; // Added to support balance update from SMS
+  transactionReference?: string;
+  operationKind?: string; // New: Detailed Type
+  country?: string; // New
+  paymentMethod?: string; // New
 }
 
 export const parseTransactionFromSMS = async (smsText: string): Promise<ParsedSMS | null> => {
@@ -120,27 +126,174 @@ export const parseTransactionFromSMS = async (smsText: string): Promise<ParsedSM
 
     const ai = new GoogleGenAI({ apiKey: API_KEY });
     
+    // Detailed schema provided by user
+    const userSchema = {
+      "TransactionTypes": [
+        {
+          "common_fields": {
+            "وسيلة الدفع": "اختياري (بطاقة، تحويل، نقدي)",
+            "الفئة": "اختياري (طعام، سكن، مواصلات، ترفيه، ادخار، استثمار)",
+            "حالة العملية": "إلزامي (مكتملة، معلقة، مرفوضة)",
+            "الرصيد بعد العملية": "اختياري",
+            "الرسوم": "اختياري",
+            "الدولة": "اختياري",
+            "ملاحظات عامة": "اختياري"
+          },
+          "types": [
+            {
+              "type": "حوالة داخلية واردة",
+              "fields": {
+                "رقم العملية": "اختياري",
+                "المبلغ": "إلزامي",
+                "نوع العملية": "إلزامي (مخصوم/إضافة)",
+                "التاريخ والوقت": "إلزامي",
+                "من المحول": "إلزامي",
+                "الحساب المستلم": "إلزامي"
+              },
+              "example_messages": [
+                "حوالة داخلية واردة\nمبلغ:SAR 19\nالى:8973\nمن:هشام علاج\nمن:9620\nفي:25-12-3 23:24",
+                "حوالة داخلية واردة\nمبلغ:SAR 79\nالى:2646\nمن:محمد بن سليم بن سلمان السكح السناني\nمن:1527\nفي:25-12-1 05:16"
+              ]
+            },
+            {
+              "type": "حوالة داخلية صادرة",
+              "fields": {
+                "رقم العملية": "اختياري",
+                "المبلغ": "إلزامي",
+                "نوع العملية": "إلزامي (مخصوم/إضافة)",
+                "التاريخ والوقت": "إلزامي",
+                "إلى المحول": "إلزامي",
+                "الحساب المرسل": "إلزامي"
+              },
+              "example_messages": [
+                "حوالة داخلية صادرة\nمن:8973\nمبلغ:SAR 20\nالى:عبدالله السناني\nالى:2780\nفي:25-12-6 06:28"
+              ]
+            },
+            {
+              "type": "حوالة محلية صادرة",
+              "fields": {
+                "رقم العملية": "اختياري",
+                "المبلغ": "إلزامي",
+                "التاريخ والوقت": "إلزامي",
+                "إلى المحول": "إلزامي",
+                "الحساب المرسل": "إلزامي"
+              },
+              "example_messages": [
+                "حوالة محلية صادرة\nمصرف:SNB\nمن:8973\nمبلغ:SAR 100\nالى:MD SHAIDUL ISLAM\nالى:2809\nالرسوم:SAR 0.58\nفي:25-11-30 20:25",
+                "حوالة محلية صادرة\nمصرف:Stc bank\nمن:8973\nمبلغ:SAR 1\nالى:رحمه الجهني\nالى:6082\nالرسوم:SAR 0.58\nفي:25-11-28 15:55"
+              ]
+            },
+            {
+              "type": "شراء عبر الإنترنت",
+              "fields": {
+                "المبلغ": "إلزامي",
+                "التاريخ والوقت": "إلزامي",
+                "البائع": "إلزامي",
+                "آخر 4 أرقام البطاقة": "إلزامي",
+                "نوع الشراء": "إنترنت"
+              },
+              "example_messages": [
+                "شراء انترنت\nبطاقة:4050 ;فيزا\nمبلغ: 12.99 SAR\nلدى:APPLE.COM\nرسوم وضريبة: 0.30 SAR\nاجمالي المبلغ المستحق: 13.29 SAR\nدولة:Ireland\nرصيد:142.75 SAR\nفي:07-12-2025 02:14",
+                "شراء إنترنت\nبطاقة:4050 ;فيزا\nمبلغ:70.65 SAR\nلدى:SALLA APP\nرصيد:297.04 SAR\nفي:06-12-2025 03:59",
+                "شراء إنترنت\nبطاقة:4050 ;فيزا\nمبلغ:45.54 SAR\nلدى:Tamara\nرصيد:59.69 SAR\nفي:03-12-2025 02:25"
+              ]
+            },
+            {
+              "type": "شراء نقاط بيع (POS)",
+              "fields": {
+                "المبلغ": "إلزامي",
+                "التاريخ والوقت": "إلزامي",
+                "البائع": "إلزامي",
+                "آخر 4 أرقام البطاقة": "إلزامي",
+                "نوع الشراء": "POS"
+              },
+              "example_messages": [
+                "شراء عبر نقاط البيع \nبطاقة:4050 ;فيزا-أثير\nلدى:aljari Um\nمبلغ:141 SAR\nرصيد:156.04 SAR\nفي:06-12-2025 20:07",
+                "شراء عبر نقاط البيع \nبطاقة:4050 ;فيزا-ابل باي\nلدى:BLACK COF\nمبلغ:32.00 SAR\nرصيد:105.23 SAR\nفي:01-12-2025 22:48"
+              ]
+            },
+            {
+              "type": "شراء مباشر",
+              "fields": {
+                "المبلغ": "إلزامي",
+                "التاريخ والوقت": "إلزامي",
+                "البائع": "إلزامي",
+                "آخر 4 أرقام البطاقة": "اختياري",
+                "نوع الشراء": "شراء"
+              },
+              "example_messages": [
+                "شراء\nبطاقة:7359;مدى-ابل باي\nمبلغ:SAR 7\nلدى:GOMAYAAN S\nفي:25-12-7 19:04",
+                "شراء\nبطاقة:7359;مدى-أثير\nمبلغ:SAR 4.50 \nلدى:Naseem Al\nفي:25-12-7 04:27"
+              ]
+            },
+            {
+              "type": "سداد بطاقة ائتمانية",
+              "fields": {
+                "المبلغ": "إلزامي",
+                "التاريخ والوقت": "إلزامي",
+                "نوع البطاقة": "إلزامي (فيزا/ماستر)",
+                "آخر 4 أرقام البطاقة": "إلزامي",
+                "الرصيد بعد السداد": "اختياري"
+              },
+              "example_messages": [
+                "بطاقة ائتمانية:سداد\nبطاقة:فيزا 4050\nمبلغ:SAR 320\nرصيد:367.69 SAR\nفي:06-12-2025 03:59"
+              ]
+            },
+            {
+              "type": "تحويل بطاقة ائتمانية",
+              "fields": {
+                "المبلغ": "إلزامي",
+                "التاريخ والوقت": "إلزامي",
+                "من البطاقة": "إلزامي",
+                "إلى الحساب": "إلزامي"
+              },
+              "example_messages": [
+                "بطاقة ائتمانية:تحويل\nمن بطاقة:4050;فيزا\nالى حساب:8973\nمبلغ:SAR 1000\nفي:25-11-27 07:12"
+              ]
+            }
+          ]
+        }
+      ]
+    };
+
     const prompt = `
-      Extract transaction details from this bank SMS text into JSON.
-      Text: "${smsText}"
-      
-      Rules:
-      1. Determine 'type': 
-         - "expense" for purchases, payments, or outgoing transfers (like "صادرة", "شراء").
-         - "income" for deposits, salary, incoming transfers (like "واردة").
-         - **CRITICAL**: If the text contains "Credit Card Payment", "بطاقة ائتمانية:سداد", or "سداد بطاقة", classify it as **"income"** (because it restores the credit limit/balance of the card).
-      2. Extract 'amount' as a number (remove currency symbols).
-      3. Extract 'merchant' or the other party's name. 
-         - If it's a credit card payment, set merchant to "Credit Card Payment" or "سداد بطاقة".
-      4. Extract 'cardLast4': 
-         - Look for digits after "من:", "الى:", "Card:", "بطاقة:", or "فيزا".
-      5. Extract 'date' and convert to ISO string.
-      6. Guess 'category'. If it's a card repayment, use 'سداد بطاقة'.
-      7. Extract 'fee' if present.
-      8. Extract 'newBalance' if present (look for "رصيد:", "Balance:", "Avail Bal"). This is the account balance AFTER the transaction.
-         Example: "رصيد:367.69" -> newBalance: 367.69
-      
-      Return JSON only.
+      You are an expert financial data parser. Extract transaction details from the provided SMS text based on the provided JSON Schema definition.
+
+      **Schema Definition**:
+      ${JSON.stringify(userSchema, null, 2)}
+
+      **Instructions**:
+      1. Analyze the "Input SMS" below.
+      2. Match it to one of the "types" in the schema.
+      3. Extract values for the fields defined (e.g., amount, date, merchant, fee, balance, transaction number, card number, country, payment method).
+      4. Map the extracted data to the following JSON output format:
+
+      **Output JSON Format**:
+      {
+        "amount": number, (Numeric value of the main transaction amount)
+        "merchant": string, (The other party name: Seller, Sender, Recipient, or 'Bank')
+        "category": string, (Infer category: 'Shopping', 'Transfer', 'Bills', 'Food', 'Income', 'Credit Card Payment')
+        "cardLast4": string, (Last 4 digits of card or account if found in 'fields' like 'آخر 4 أرقام البطاقة')
+        "date": string, (ISO 8601 format YYYY-MM-DDTHH:mm:ss, assume current year if missing)
+        "type": "income" | "expense", (See Logic below)
+        "fee": number, (Transaction fee if present, else 0)
+        "newBalance": number | null, (The balance *after* transaction if present)
+        "transactionReference": string, (The transaction ID/Number if present)
+        "operationKind": string, (The specific 'type' name from the schema, e.g., 'شراء عبر الإنترنت', 'حوالة داخلية واردة')
+        "country": string, (Country name if present in 'common_fields', else null)
+        "paymentMethod": string (Payment method if inferred or present, e.g. 'Card', 'Transfer', 'Cash')
+      }
+
+      **Logic for 'type' (income/expense)**:
+      - "حوالة داخلية واردة" (Incoming Transfer) -> income
+      - "حوالة داخلية صادرة" (Outgoing Transfer) -> expense
+      - "حوالة محلية صادرة" (Local Outgoing) -> expense
+      - "شراء" / "شراء عبر الإنترنت" / "شراء نقاط بيع" (Purchase) -> expense
+      - "سداد بطاقة ائتمانية" (Credit Card Payment) -> income (This usually means funds added to the credit card balance)
+      - "تحويل بطاقة ائتمانية" (Credit Card Transfer) -> expense (Money leaving the card)
+
+      **Input SMS**:
+      "${smsText}"
     `;
 
     const response = await ai.models.generateContent({

@@ -84,6 +84,16 @@ ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS note TEXT;
 ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
 ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS card_id UUID REFERENCES public.bank_cards(id) ON DELETE SET NULL;
 ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+-- New columns for enhanced transaction tracking
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS merchant VARCHAR(255);
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS fee DECIMAL(12, 2) DEFAULT 0.00;
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS balance_after DECIMAL(12, 2);
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS transaction_reference VARCHAR(100);
+-- Detailed fields requested
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS operation_kind VARCHAR(50); -- نوع العملية التفصيلي
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS card_last4 VARCHAR(4);      -- آخر 4 أرقام البطاقة
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS country VARCHAR(100);       -- الدولة
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50); -- وسيلة الدفع
 
 -- LOANS
 CREATE TABLE IF NOT EXISTS public.loans (
@@ -185,3 +195,11 @@ ALTER TABLE public.income_sources ADD COLUMN IF NOT EXISTS details JSONB DEFAULT
 ALTER TABLE public.bills ADD COLUMN IF NOT EXISTS total_debt DECIMAL(12, 2);
 ALTER TABLE public.bills ADD COLUMN IF NOT EXISTS paid_dates JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE public.bills ADD COLUMN IF NOT EXISTS custom_schedule JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS merchant VARCHAR(255);
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS fee DECIMAL(12, 2) DEFAULT 0.00;
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS balance_after DECIMAL(12, 2);
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS transaction_reference VARCHAR(100);
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS operation_kind VARCHAR(50);
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS card_last4 VARCHAR(4);
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS country VARCHAR(100);
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50);

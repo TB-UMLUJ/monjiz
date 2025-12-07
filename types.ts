@@ -18,6 +18,16 @@ export interface Transaction {
   date: string; // ISO String
   note?: string;
   cardId?: string; // Link to specific card
+  // New fields for enhanced transaction tracking
+  merchant?: string;
+  fee?: number;
+  balanceAfter?: number;
+  transactionReference?: string;
+  // Detailed fields
+  operationKind?: string;
+  cardLast4?: string;
+  country?: string;
+  paymentMethod?: string;
 }
 
 export interface LoanScheduleItem {

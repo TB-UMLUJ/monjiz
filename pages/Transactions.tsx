@@ -1,10 +1,9 @@
 
-
 import React, { useState } from 'react';
 import { Transaction, TransactionType, UserSettings } from '../types';
 import { storageService } from '../services/storage';
 import { parseTransactionFromSMS } from '../services/geminiService';
-import { Trash2, Search, ArrowDownLeft, ArrowUpRight, Edit3, Save, X, Loader2, MessageSquarePlus, Wand2, Sparkles, CreditCard, AlertTriangle, Plus } from 'lucide-react';
+import { Trash2, Search, ArrowDownLeft, ArrowUpRight, Edit3, Save, X, Loader2, MessageSquarePlus, Wand2, Sparkles, CreditCard, AlertTriangle, Plus, Globe, Receipt, FileText, Tag, Hash } from 'lucide-react';
 import { useNotification } from '../contexts/NotificationContext';
 
 interface TransactionsProps {
@@ -38,8 +37,16 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
     category: '',
     note: '',
     type: TransactionType.EXPENSE,
-    date: new Date().toISOString(),
-    cardId: ''
+    date: new Date().toISOString().split('T')[0],
+    time: new Date().toTimeString().split(' ')[0].substring(0, 5),
+    cardId: '',
+    // Detailed Fields
+    merchant: '',
+    fee: '',
+    transactionReference: '',
+    operationKind: '',
+    country: '',
+    paymentMethod: ''
   });
 
   const categories = [
@@ -47,14 +54,36 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
     'راتب', 'استثمار', 'تحويل بنكي', 'استلام أموال', 'رسوم بنكية', 'سداد بطاقة', 'أخرى'
   ];
 
+  const operationKinds = [
+    "شراء عبر الإنترنت",
+    "شراء نقاط بيع (POS)",
+    "شراء مباشر",
+    "حوالة داخلية واردة",
+    "حوالة داخلية صادرة",
+    "حوالة محلية صادرة",
+    "سداد بطاقة ائتمانية",
+    "تحويل بطاقة ائتمانية",
+    "سحب نقدي",
+    "إيداع نقدي",
+    "أخرى"
+  ];
+
   const resetForm = () => {
+    const now = new Date();
     setFormTx({
       amount: '',
       category: '',
       note: '',
       type: TransactionType.EXPENSE,
-      date: new Date().toISOString(),
-      cardId: ''
+      date: now.toISOString().split('T')[0],
+      time: now.toTimeString().split(' ')[0].substring(0, 5),
+      cardId: '',
+      merchant: '',
+      fee: '',
+      transactionReference: '',
+      operationKind: '',
+      country: '',
+      paymentMethod: ''
     });
     setEditingId(null);
   };
@@ -68,13 +97,23 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
     e.preventDefault();
     e.stopPropagation();
     setEditingId(tx.id);
+    
+    const txDate = new Date(tx.date);
+    
     setFormTx({
       amount: tx.amount.toString(),
       category: tx.category,
       note: tx.note || '',
       type: tx.type,
-      date: tx.date,
-      cardId: tx.cardId || ''
+      date: txDate.toISOString().split('T')[0],
+      time: txDate.toTimeString().split(' ')[0].substring(0, 5),
+      cardId: tx.cardId || '',
+      merchant: tx.merchant || '',
+      fee: tx.fee ? tx.fee.toString() : '',
+      transactionReference: tx.transactionReference || '',
+      operationKind: tx.operationKind || '',
+      country: tx.country || '',
+      paymentMethod: tx.paymentMethod || ''
     });
     setShowAddModal(true); // Open modal for editing
   };
@@ -86,6 +125,8 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
 
     try {
       let finalCardId = formTx.cardId;
+      // Combine Date and Time
+      const combinedDateTime = new Date(`${formTx.date}T${formTx.time}:00`).toISOString();
 
       if (editingId) {
         // Edit Mode
@@ -95,14 +136,21 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
           category: formTx.category,
           type: formTx.type,
           note: formTx.note,
-          date: formTx.date,
-          cardId: finalCardId || undefined
+          date: combinedDateTime,
+          cardId: finalCardId || undefined,
+          merchant: formTx.merchant || undefined,
+          fee: formTx.fee ? parseFloat(formTx.fee) : 0,
+          transactionReference: formTx.transactionReference || undefined,
+          operationKind: formTx.operationKind || undefined,
+          country: formTx.country || undefined,
+          paymentMethod: formTx.paymentMethod || undefined
         };
         await storageService.updateTransaction(updatedTx);
         notify('تم تعديل العملية بنجاح', 'success');
       } else {
         // Create Mode
         const amount = parseFloat(formTx.amount);
+        const fee = formTx.fee ? parseFloat(formTx.fee) : 0;
         
         // Update Balance Logic
         if (formTx.cardId) {
@@ -112,8 +160,13 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
                 const card = updatedCards[cardIndex];
                 const currentBal = card.balance || 0;
                 
-                // Expense: Subtract / Income: Add
-                const newBalance = formTx.type === TransactionType.EXPENSE ? currentBal - amount : currentBal + amount;
+                // Expense: Subtract (Amount + Fee) / Income: Add
+                let newBalance = currentBal;
+                if (formTx.type === TransactionType.EXPENSE) {
+                    newBalance = currentBal - amount - fee;
+                } else {
+                    newBalance = currentBal + amount;
+                }
 
                 updatedCards[cardIndex] = {
                     ...card,
@@ -121,8 +174,6 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
                 };
                 
                 const newSettings = { ...settings, cards: updatedCards };
-                
-                // CRITICAL: Save settings first and get fresh IDs/Data
                 const savedSettings = await storageService.saveSettings(newSettings);
                 setSettings(savedSettings);
             }
@@ -134,8 +185,14 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
           category: formTx.category,
           type: formTx.type,
           note: formTx.note,
-          date: new Date().toISOString(),
-          cardId: finalCardId || undefined
+          date: combinedDateTime,
+          cardId: finalCardId || undefined,
+          merchant: formTx.merchant || undefined,
+          fee: fee,
+          transactionReference: formTx.transactionReference || undefined,
+          operationKind: formTx.operationKind || undefined,
+          country: formTx.country || undefined,
+          paymentMethod: formTx.paymentMethod || undefined
         };
 
         await storageService.saveTransaction(tx);
@@ -208,6 +265,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
              setSettings(savedSettings);
          }
 
+         // Enhanced Transaction Object
          const newTx: Transaction = {
             id: '',
             amount: mainAmount,
@@ -215,22 +273,18 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
             category: parsed.category,
             date: parsed.date || new Date().toISOString(),
             note: `من: ${parsed.merchant}`, // Use "From:" as requested
-            cardId: matchedCardId || undefined
+            cardId: matchedCardId || undefined,
+            // New Fields
+            merchant: parsed.merchant,
+            fee: parsed.fee,
+            balanceAfter: parsed.newBalance || undefined,
+            transactionReference: parsed.transactionReference,
+            operationKind: parsed.operationKind,
+            cardLast4: parsed.cardLast4,
+            country: parsed.country,
+            paymentMethod: parsed.paymentMethod
          };
          await storageService.saveTransaction(newTx);
-
-         if (feeAmount > 0) {
-            const feeTx: Transaction = {
-                id: '',
-                amount: feeAmount,
-                type: TransactionType.EXPENSE,
-                category: 'رسوم بنكية',
-                date: parsed.date || new Date().toISOString(),
-                note: `رسوم: ${parsed.merchant}`,
-                cardId: matchedCardId || undefined
-            };
-            await storageService.saveTransaction(feeTx);
-         }
 
          const fresh = await storageService.getTransactions();
          setTransactions(fresh);
@@ -271,12 +325,13 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
               const updatedCards = [...settings.cards];
               const card = updatedCards[cardIndex];
               const currentBal = card.balance || 0;
+              const fee = txToDelete.fee || 0;
               
               // Reverse Logic: 
               // If it was Expense, we ADD it back. 
               // If it was Income, we SUBTRACT it.
               const newBalance = txToDelete.type === TransactionType.EXPENSE 
-                  ? currentBal + txToDelete.amount 
+                  ? currentBal + txToDelete.amount + fee
                   : currentBal - txToDelete.amount;
 
               updatedCards[cardIndex] = {
@@ -307,7 +362,8 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
 
   const filteredData = transactions.filter(t => 
     t.category.includes(filter) || 
-    t.note?.includes(filter)
+    t.note?.includes(filter) ||
+    t.merchant?.includes(filter)
   );
 
   return (
@@ -319,7 +375,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
                 <Search className="absolute right-3 top-3.5 text-slate-400" size={18} />
                 <input 
                   type="text" 
-                  placeholder="بحث في العمليات..." 
+                  placeholder="بحث في العمليات (التاجر، الملاحظات)..." 
                   className="w-full pr-10 pl-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-slate-700 dark:text-slate-200 transition-all shadow-sm"
                   value={filter}
                   onChange={e => setFilter(e.target.value)}
@@ -361,11 +417,16 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
                       {tx.type === TransactionType.INCOME ? <ArrowUpRight size={20} /> : <ArrowDownLeft size={20} />}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-bold text-slate-800 dark:text-slate-200 text-sm md:text-base">{tx.category}</h4>
-                      <div className="flex items-center gap-2 text-xs text-slate-400 whitespace-normal">
-                         <span>{new Date(tx.date).toLocaleDateString('en-GB')}</span>
-                         {tx.note && <span>• {tx.note}</span>}
+                      <div className="flex items-center gap-2">
+                          <h4 className="font-bold text-slate-800 dark:text-slate-200 text-sm md:text-base">{tx.merchant || tx.category}</h4>
+                          {tx.operationKind && <span className="text-[10px] bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-slate-500">{tx.operationKind}</span>}
                       </div>
+                      
+                      <div className="flex items-center gap-2 text-xs text-slate-400 whitespace-normal mt-0.5">
+                         <span>{new Date(tx.date).toLocaleDateString('en-GB')}</span>
+                         {(tx.merchant && tx.category) && <span>• {tx.category}</span>}
+                      </div>
+                      
                       {tx.cardId && (
                         <div className="flex items-center gap-1.5 mt-1.5 text-slate-500 dark:text-slate-400 text-[10px] bg-slate-100 dark:bg-slate-800 w-fit px-2 py-0.5 rounded-full font-sans">
                             <CreditCard size={10} />
@@ -376,10 +437,12 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
                 </div>
                  
                 <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto mt-2 sm:mt-0">
-                    <span className={`font-bold text-base md:text-lg ${tx.type === TransactionType.INCOME ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-800 dark:text-slate-200'}`}>
-                       {tx.type === TransactionType.INCOME ? '+' : '-'}{tx.amount.toLocaleString('en-US')}
-                    </span>
-                    {/* Edit button removed from here */}
+                    <div className="text-right">
+                        <span className={`font-bold text-base md:text-lg block ${tx.type === TransactionType.INCOME ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-800 dark:text-slate-200'}`}>
+                        {tx.type === TransactionType.INCOME ? '+' : '-'}{tx.amount.toLocaleString('en-US')}
+                        </span>
+                        {(tx.fee || 0) > 0 && <span className="text-[10px] text-rose-500 block">رسوم: {Number(tx.fee).toFixed(2)}</span>}
+                    </div>
                  </div>
               </div>
             ))}
@@ -396,10 +459,10 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
       {/* Add / Edit Transaction Modal */}
       {showAddModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-             <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-3xl p-6 shadow-2xl animate-scale-in border border-slate-200 dark:border-slate-800">
+             <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-3xl p-6 shadow-2xl animate-scale-in border border-slate-200 dark:border-slate-800 max-h-[95vh] overflow-y-auto">
                 <div className="flex justify-between items-center mb-6 border-b border-slate-100 dark:border-slate-800 pb-4">
                     <h3 className="font-bold text-xl text-slate-800 dark:text-white">
-                        {editingId ? 'تعديل العملية' : 'تسجيل يدوياً'}
+                        {editingId ? 'تعديل العملية' : 'تسجيل عملية يدوياً'}
                     </h3>
                     <button onClick={() => setShowAddModal(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-500 transition-colors">
                         <X size={24}/>
@@ -424,60 +487,137 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
                         </button>
                     </div>
 
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">المبلغ</label>
-                        <div className="relative">
-                            <input 
-                            type="number" 
-                            step="0.01"
+                    <div className="grid grid-cols-2 gap-4">
+                        {/* Amount & Fee */}
+                        <div className="col-span-2 md:col-span-1">
+                            <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">المبلغ</label>
+                            <div className="relative">
+                                <input 
+                                type="number" step="0.01" required autoFocus
+                                className="w-full p-3 pl-12 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-lg text-slate-900 dark:text-white transition-all"
+                                placeholder="0.00"
+                                value={formTx.amount}
+                                onChange={e => setFormTx({...formTx, amount: e.target.value})}
+                                />
+                                <span className="absolute left-4 top-4 text-slate-400 text-xs font-bold">SAR</span>
+                            </div>
+                        </div>
+                        <div className="col-span-2 md:col-span-1">
+                             <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">الرسوم (اختياري)</label>
+                             <div className="relative">
+                                <input 
+                                type="number" step="0.01"
+                                className="w-full p-3 pl-12 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-rose-500 outline-none font-bold text-slate-900 dark:text-white transition-all"
+                                placeholder="0.00"
+                                value={formTx.fee}
+                                onChange={e => setFormTx({...formTx, fee: e.target.value})}
+                                />
+                                <span className="absolute left-4 top-4 text-slate-400 text-xs font-bold">SAR</span>
+                             </div>
+                        </div>
+
+                        {/* Merchant */}
+                        <div className="col-span-2">
+                             <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">الطرف الآخر (التاجر / المستفيد / المرسل)</label>
+                             <div className="relative">
+                                <Tag className="absolute right-3 top-3.5 text-slate-400" size={18}/>
+                                <input 
+                                    type="text" 
+                                    className="w-full p-3 pr-10 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-slate-900 dark:text-white transition-all font-medium"
+                                    placeholder={formTx.type === TransactionType.EXPENSE ? "مثل: سوبرماركت، محطة وقود، محمد..." : "مثل: شركة، مكافأة..."}
+                                    value={formTx.merchant}
+                                    onChange={e => setFormTx({...formTx, merchant: e.target.value})}
+                                />
+                             </div>
+                        </div>
+
+                        {/* Category & Operation Kind */}
+                        <div className="col-span-2 md:col-span-1">
+                            <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">التصنيف</label>
+                            <select 
                             required
-                            autoFocus
-                            className="w-full p-3 pl-12 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-lg text-slate-900 dark:text-white transition-all"
-                            placeholder="0.00"
-                            value={formTx.amount}
-                            onChange={e => setFormTx({...formTx, amount: e.target.value})}
+                            className="w-full p-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-slate-700 dark:text-slate-300 transition-all font-medium"
+                            value={formTx.category}
+                            onChange={e => setFormTx({...formTx, category: e.target.value})}
+                            >
+                            <option value="">اختر تصنيف...</option>
+                            {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                        </div>
+                        <div className="col-span-2 md:col-span-1">
+                             <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">نوع العملية (تفصيلي)</label>
+                             <select 
+                                className="w-full p-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-slate-700 dark:text-slate-300 transition-all font-medium"
+                                value={formTx.operationKind}
+                                onChange={e => setFormTx({...formTx, operationKind: e.target.value})}
+                             >
+                                <option value="">-- نوع العملية --</option>
+                                {operationKinds.map(k => <option key={k} value={k}>{k}</option>)}
+                             </select>
+                        </div>
+                        
+                        {/* Card & Payment Method */}
+                        <div className="col-span-2 md:col-span-1">
+                            <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">الحساب / البطاقة</label>
+                            <select 
+                            className="w-full p-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-slate-700 dark:text-slate-300 transition-all text-sm font-medium"
+                            value={formTx.cardId}
+                            onChange={e => setFormTx({...formTx, cardId: e.target.value})}
+                            >
+                            <option value="">-- نقدي / غير محدد --</option>
+                            {settings.cards.map(c => <option key={c.id} value={c.id}>{c.bankName} - {c.cardNumber}</option>)}
+                            </select>
+                        </div>
+                        <div className="col-span-2 md:col-span-1">
+                             <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">وسيلة الدفع</label>
+                             <input 
+                                type="text"
+                                className="w-full p-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-slate-700 dark:text-slate-300 transition-all text-sm"
+                                placeholder="مثل: Apple Pay, Mada..."
+                                value={formTx.paymentMethod}
+                                onChange={e => setFormTx({...formTx, paymentMethod: e.target.value})}
+                             />
+                        </div>
+
+                        {/* Date & Time */}
+                        <div className="col-span-2 md:col-span-1">
+                             <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">التاريخ</label>
+                             <input type="date" required className="w-full p-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none dark:text-white" value={formTx.date} onChange={e => setFormTx({...formTx, date: e.target.value})} />
+                        </div>
+                        <div className="col-span-2 md:col-span-1">
+                             <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">الوقت</label>
+                             <input type="time" required className="w-full p-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none dark:text-white" value={formTx.time} onChange={e => setFormTx({...formTx, time: e.target.value})} />
+                        </div>
+
+                        {/* Extra Details */}
+                        <div className="col-span-2 md:col-span-1">
+                             <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">الدولة</label>
+                             <div className="relative">
+                                <Globe className="absolute right-3 top-3.5 text-slate-400" size={16}/>
+                                <input type="text" className="w-full p-3 pr-10 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none dark:text-white text-sm" placeholder="اختياري" value={formTx.country} onChange={e => setFormTx({...formTx, country: e.target.value})} />
+                             </div>
+                        </div>
+                        <div className="col-span-2 md:col-span-1">
+                             <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">رقم مرجعي</label>
+                             <div className="relative">
+                                <Hash className="absolute right-3 top-3.5 text-slate-400" size={16}/>
+                                <input type="text" className="w-full p-3 pr-10 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none dark:text-white text-sm" placeholder="اختياري" value={formTx.transactionReference} onChange={e => setFormTx({...formTx, transactionReference: e.target.value})} />
+                             </div>
+                        </div>
+
+                        <div className="col-span-2">
+                            <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">ملاحظات إضافية</label>
+                            <input 
+                            type="text" 
+                            className="w-full p-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-slate-700 dark:text-slate-300 transition-all text-sm"
+                            placeholder="وصف مختصر..."
+                            value={formTx.note}
+                            onChange={e => setFormTx({...formTx, note: e.target.value})}
                             />
-                            <span className="absolute left-4 top-4 text-slate-400 text-xs font-bold">SAR</span>
                         </div>
                     </div>
 
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">التصنيف</label>
-                        <select 
-                        required
-                        className="w-full p-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-slate-700 dark:text-slate-300 transition-all font-medium"
-                        value={formTx.category}
-                        onChange={e => setFormTx({...formTx, category: e.target.value})}
-                        >
-                        <option value="">اختر تصنيف...</option>
-                        {categories.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                    </div>
-
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">خصم من البطاقة (اختياري)</label>
-                        <select 
-                        className="w-full p-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-slate-700 dark:text-slate-300 transition-all text-sm font-medium"
-                        value={formTx.cardId}
-                        onChange={e => setFormTx({...formTx, cardId: e.target.value})}
-                        >
-                        <option value="">-- بدون تحديد --</option>
-                        {settings.cards.map(c => <option key={c.id} value={c.id}>{c.bankName} - {c.cardNumber}</option>)}
-                        </select>
-                    </div>
-
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">ملاحظة (اختياري)</label>
-                        <input 
-                        type="text" 
-                        className="w-full p-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-slate-700 dark:text-slate-300 transition-all text-sm"
-                        placeholder="وصف مختصر، رقم الفاتورة..."
-                        value={formTx.note}
-                        onChange={e => setFormTx({...formTx, note: e.target.value})}
-                        />
-                    </div>
-
-                    <div className="pt-4 flex gap-3">
+                    <div className="pt-4 flex gap-3 border-t border-slate-100 dark:border-slate-800 mt-2">
                          {editingId && (
                              <button 
                                 type="button"
@@ -506,36 +646,64 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
                         <span className={`text-xs font-bold px-2 py-1 rounded-full ${selectedTx.type === TransactionType.INCOME ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'}`}>
                             {selectedTx.type === TransactionType.INCOME ? 'دخل' : 'مصروف'}
                         </span>
-                        <h3 className="font-bold text-2xl text-slate-800 dark:text-white mt-2">{selectedTx.category}</h3>
+                        <h3 className="font-bold text-2xl text-slate-800 dark:text-white mt-2">{selectedTx.merchant || selectedTx.category}</h3>
+                        <p className="text-xs text-slate-500 mt-1">{selectedTx.operationKind || selectedTx.category}</p>
                     </div>
                     <button onClick={() => { setSelectedTx(null); setShowDeleteConfirm(false); }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-500"><X size={20}/></button>
                 </div>
                 
                 {/* Body */}
                 <div className="p-6 space-y-4">
-                    <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl">
+                    <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-100 dark:border-slate-700">
                         <span className="text-sm text-slate-500 dark:text-slate-400">المبلغ</span>
-                        <span className={`font-bold text-2xl ${selectedTx.type === TransactionType.INCOME ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-900 dark:text-white'}`}>
-                            {selectedTx.type === TransactionType.INCOME ? '+' : '-'}{selectedTx.amount.toLocaleString('en-US')} SAR
-                        </span>
-                    </div>
-                    <div className="text-sm">
-                        <p className="text-slate-400">التاريخ</p>
-                        <p className="font-bold dark:text-slate-200">{new Date(selectedTx.date).toLocaleString('ar-SA', { dateStyle: 'full', timeStyle: 'short' })}</p>
-                    </div>
-                     {selectedTx.note && (
-                        <div className="text-sm">
-                            <p className="text-slate-400">ملاحظة</p>
-                            <p className="font-bold dark:text-slate-200">{selectedTx.note}</p>
+                        <div className="text-right">
+                             <span className={`font-bold text-2xl ${selectedTx.type === TransactionType.INCOME ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-900 dark:text-white'}`}>
+                                {selectedTx.type === TransactionType.INCOME ? '+' : '-'}{selectedTx.amount.toLocaleString('en-US')} SAR
+                             </span>
+                             {(selectedTx.fee || 0) > 0 && (
+                                 <p className="text-xs text-rose-500 font-bold mt-1"> + رسوم: {Number(selectedTx.fee).toFixed(2)} SAR</p>
+                             )}
                         </div>
-                     )}
-                     {selectedTx.cardId && settings.cards.find(c => c.id === selectedTx.cardId) && (
-                         <div className="text-sm">
-                            <p className="text-slate-400">البطاقة المستخدمة</p>
-                            <p className="font-bold dark:text-slate-200 flex items-center gap-2">
-                                <CreditCard size={14}/>
-                                {settings.cards.find(c => c.id === selectedTx.cardId)?.bankName} •••• {settings.cards.find(c => c.id === selectedTx.cardId)?.cardNumber}
-                            </p>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                         <div>
+                            <p className="text-slate-400 text-xs">التاريخ</p>
+                            <p className="font-bold dark:text-slate-200">{new Date(selectedTx.date).toLocaleString('ar-SA', { dateStyle: 'full', timeStyle: 'short' })}</p>
+                         </div>
+                         {selectedTx.country && (
+                             <div>
+                                <p className="text-slate-400 text-xs">الدولة</p>
+                                <p className="font-bold dark:text-slate-200 flex items-center gap-1"><Globe size={12}/> {selectedTx.country}</p>
+                             </div>
+                         )}
+                         {selectedTx.cardId && settings.cards.find(c => c.id === selectedTx.cardId) && (
+                             <div className="col-span-2">
+                                <p className="text-slate-400 text-xs">البطاقة المستخدمة</p>
+                                <p className="font-bold dark:text-slate-200 flex items-center gap-2 bg-slate-50 dark:bg-slate-800 p-2 rounded-lg w-fit mt-1">
+                                    <CreditCard size={14}/>
+                                    {settings.cards.find(c => c.id === selectedTx.cardId)?.bankName} •••• {settings.cards.find(c => c.id === selectedTx.cardId)?.cardNumber}
+                                </p>
+                            </div>
+                         )}
+                         {selectedTx.paymentMethod && (
+                             <div>
+                                <p className="text-slate-400 text-xs">وسيلة الدفع</p>
+                                <p className="font-bold dark:text-slate-200">{selectedTx.paymentMethod}</p>
+                             </div>
+                         )}
+                         {selectedTx.transactionReference && (
+                             <div className="col-span-2">
+                                <p className="text-slate-400 text-xs">رقم مرجعي</p>
+                                <p className="font-mono text-xs bg-slate-100 dark:bg-slate-800 p-1 rounded w-fit">{selectedTx.transactionReference}</p>
+                             </div>
+                         )}
+                    </div>
+
+                     {selectedTx.note && (
+                        <div className="text-sm bg-amber-50 dark:bg-amber-900/10 p-3 rounded-lg border border-amber-100 dark:border-amber-900/30">
+                            <p className="text-amber-800 dark:text-amber-500 font-bold text-xs mb-1">ملاحظة</p>
+                            <p className="text-slate-700 dark:text-slate-300">{selectedTx.note}</p>
                         </div>
                      )}
                 </div>
