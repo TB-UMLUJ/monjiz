@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Transaction, UserSettings, FinancialGoal, Loan, Bill } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as ReTooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
@@ -562,8 +564,14 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
 
        {/* Add Goal Modal */}
        {showGoalModal && (
-           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-               <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-sm shadow-2xl animate-scale-in">
+           <div 
+                className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+                onClick={() => setShowGoalModal(false)}
+            >
+               <div 
+                    className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-sm shadow-2xl animate-scale-in"
+                    onClick={(e) => e.stopPropagation()}
+                >
                    <h3 className="font-bold text-lg mb-4 text-slate-800 dark:text-white">إضافة هدف مالي جديد</h3>
                    <form onSubmit={handleAddGoal} className="space-y-4">
                        <div>
@@ -589,8 +597,14 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
 
        {/* AI Savings Simulator Modal */}
        {showAiSimModal && (
-           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in">
-               <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-3xl p-6 shadow-2xl animate-scale-in max-h-[90vh] flex flex-col">
+           <div 
+                className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in"
+                onClick={() => {setShowAiSimModal(false); setSimResult(null); setSelectedSimItems([]);}}
+            >
+               <div 
+                    className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-3xl p-6 shadow-2xl animate-scale-in max-h-[90vh] flex flex-col"
+                    onClick={(e) => e.stopPropagation()}
+                >
                    <div className="flex justify-between items-center mb-6">
                        <h3 className="font-bold text-xl text-slate-900 dark:text-white flex items-center gap-2"><Bot className="text-indigo-500"/> حاسبة التصفية الذكية</h3>
                        <button onClick={() => {setShowAiSimModal(false); setSimResult(null); setSelectedSimItems([]);}} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-500"><X size={20}/></button>

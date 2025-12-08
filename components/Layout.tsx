@@ -35,7 +35,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
   }, [privacyMode]);
 
   const menuItems = [
-    { id: 'dashboard', label: 'لوحة التحكم', icon: LayoutDashboard },
+    { id: 'dashboard', label: 'الرئيسية', icon: LayoutDashboard },
     { id: 'transactions', label: 'المصاريف', icon: Wallet },
     { id: 'loans', label: 'القروض', icon: Banknote },
     { id: 'budget', label: 'الميزانية', icon: PieChart },
@@ -213,8 +213,8 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
         </div>
       </main>
 
-      {/* Mobile Bottom Floating Nav */}
-      <nav className="md:hidden fixed bottom-6 left-6 right-6 bg-slate-900 dark:bg-slate-800 rounded-3xl shadow-2xl z-50 px-6 py-4 flex justify-between items-center border border-slate-800 dark:border-slate-700">
+      {/* Mobile Bottom Floating Nav - Redesigned with Glass Effect */}
+      <nav className="md:hidden fixed bottom-4 inset-x-4 h-16 bg-white/70 dark:bg-slate-900/80 backdrop-blur-lg rounded-full shadow-2xl z-50 p-2 flex justify-around items-center border border-slate-200 dark:border-slate-700">
         {menuItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
@@ -222,14 +222,20 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
             <button
               key={item.id}
               onClick={() => onTabChange(item.id)}
-              className={`flex flex-col items-center gap-1 transition-all duration-300 ${
-                isActive ? 'text-[#bef264] -translate-y-1' : 'text-slate-400'
-              }`}
+              className="flex-1 h-full flex justify-center items-center rounded-full"
+              aria-label={item.label}
+              aria-current={isActive ? 'page' : undefined}
             >
-              <div className={`p-2 rounded-full ${isActive ? 'bg-white/10' : 'bg-transparent'}`}>
-                <Icon size={24} strokeWidth={isActive ? 2.5 : 2} />
-              </div>
-              {isActive && <span className="w-1 h-1 rounded-full bg-[#bef264]"></span>}
+              {isActive ? (
+                <div className="flex items-center justify-center gap-2 rounded-full transition-all duration-300 ease-out bg-slate-900 dark:bg-[#bef264] text-white dark:text-slate-900 px-5 py-2.5 shadow-md">
+                  <Icon size={20} strokeWidth={2.5} />
+                  <span className="text-sm font-bold whitespace-nowrap animate-fade-in">{item.label}</span>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center rounded-full w-12 h-12 text-slate-500 dark:text-slate-300 transition-colors">
+                  <Icon size={24} strokeWidth={2} />
+                </div>
+              )}
             </button>
           );
         })}

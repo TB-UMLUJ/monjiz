@@ -171,3 +171,10 @@ export interface FinancialGoal {
   icon: string;
   color: string;
 }
+
+export interface ReportConfig {
+    includeSnapshot: boolean;
+    includeLoans: boolean;
+    includeBills: boolean;
+    includeAiAnalysis: boolean;
+}

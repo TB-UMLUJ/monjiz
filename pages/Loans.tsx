@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Loan, LoanType, Bill, EntityLogo, Transaction, TransactionType, UserSettings, BillScheduleItem } from '../types';
 import { calculateLoanSchedule, calculateDurationInMonths } from '../services/loanCalculator';
@@ -1430,8 +1431,14 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
 
       {/* Loan Details Modal (Restored) */}
       {selectedLoan && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-            <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-3xl shadow-2xl animate-scale-in max-h-[90vh] flex flex-col overflow-hidden">
+          <div 
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in"
+            onClick={() => setSelectedLoan(null)}
+          >
+            <div 
+                className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-3xl shadow-2xl animate-scale-in max-h-[90vh] flex flex-col overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+            >
                 <div className="p-6 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 flex flex-col gap-4">
                     <div className="flex justify-between items-start">
                          <div className="flex items-center gap-3">
@@ -1555,8 +1562,14 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
 
       {/* Bill Details Modal with Schedule */}
       {selectedBill && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-            <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-3xl shadow-2xl animate-scale-in max-h-[90vh] flex flex-col overflow-hidden">
+          <div 
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+            onClick={() => setSelectedBill(null)}
+          >
+            <div 
+                className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-3xl shadow-2xl animate-scale-in max-h-[90vh] flex flex-col overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+            >
                 <div className="p-6 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 flex flex-col gap-4">
                     <div className="flex justify-between items-start">
                          <div className="flex items-center gap-3">
@@ -1691,8 +1704,14 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
 
       {/* Add Bill Modal - Restored and Enhanced */}
       {showAddBillModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-              <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-3xl p-6 shadow-2xl animate-scale-in max-h-[90vh] overflow-y-auto">
+          <div 
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in"
+            onClick={() => setShowAddBillModal(false)}
+          >
+              <div 
+                className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-3xl p-6 shadow-2xl animate-scale-in max-h-[90vh] overflow-y-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
                   <div className="flex justify-between items-center mb-6">
                       <h3 className="font-bold text-xl text-slate-900 dark:text-white">{editingBillId ? 'تعديل الفاتورة' : 'إضافة فاتورة/التزام'}</h3>
                       <button onClick={() => setShowAddBillModal(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-500"><X size={20}/></button>
@@ -1898,8 +1917,14 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
 
       {/* Manual Schedule Editor Modal (Shared for Loan and Bill) */}
       {showScheduleEditor && (
-          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in">
-              <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-3xl p-6 shadow-2xl animate-scale-in max-h-[90vh] flex flex-col">
+          <div 
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in"
+            onClick={() => setShowScheduleEditor(false)}
+          >
+              <div 
+                className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-3xl p-6 shadow-2xl animate-scale-in max-h-[90vh] flex flex-col"
+                onClick={(e) => e.stopPropagation()}
+              >
                    <div className="flex justify-between items-center mb-4">
                       <h3 className="font-bold text-lg text-slate-900 dark:text-white">تعديل جدول الدفعات</h3>
                       <button onClick={() => setShowScheduleEditor(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-500"><X size={20}/></button>
@@ -1953,8 +1978,14 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
       
       {/* Add Loan Modal (Restored) */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-             <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-3xl p-6 shadow-2xl animate-scale-in max-h-[90vh] overflow-y-auto">
+        <div 
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in"
+            onClick={() => setShowAddModal(false)}
+        >
+             <div 
+                className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-3xl p-6 shadow-2xl animate-scale-in max-h-[90vh] overflow-y-auto"
+                onClick={(e) => e.stopPropagation()}
+            >
                 <div className="flex justify-between items-center mb-6 border-b border-slate-100 dark:border-slate-800 pb-4">
                     <h3 className="font-bold text-xl text-slate-800 dark:text-white">
                         {isEditing ? 'تعديل القرض / الالتزام' : 'إضافة قرض جديد'}
@@ -2067,8 +2098,14 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
 
       {/* Payment Modal (Shared) */}
       {paymentModal.isOpen && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-             <div className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-scale-in">
+        <div 
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in"
+            onClick={() => setPaymentModal({...paymentModal, isOpen: false})}
+        >
+             <div 
+                className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-scale-in"
+                onClick={(e) => e.stopPropagation()}
+             >
                  <div className="text-center mb-6">
                      <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${paymentModal.type === 'refund' ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600'}`}>
                          {paymentModal.type === 'refund' ? <RotateCcw size={32}/> : <CheckCircle size={32}/>}
@@ -2106,8 +2143,14 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
       
       {/* Smart Import Modal */}
       {showSmartModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-             <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-3xl p-6 shadow-2xl animate-scale-in">
+        <div 
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in"
+            onClick={() => setShowSmartModal(false)}
+        >
+             <div 
+                className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-3xl p-6 shadow-2xl animate-scale-in"
+                onClick={(e) => e.stopPropagation()}
+            >
                  <div className="flex justify-between items-center mb-4">
                      <h3 className="font-bold text-xl text-slate-800 dark:text-white flex items-center gap-2"><Sparkles className="text-indigo-500"/> استيراد ذكي</h3>
                      <button onClick={() => setShowSmartModal(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-500"><X size={20}/></button>

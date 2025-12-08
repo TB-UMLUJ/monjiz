@@ -621,8 +621,14 @@ const Dashboard: React.FC<DashboardProps> = ({
 
       {/* ... (Modals remain unchanged, just ensure sensitive data in them is wrapped if needed, but modals usually have visible inputs) ... */}
        {modalConfig.isOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
-           <div className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-scale-in">
+        <div 
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in"
+            onClick={() => setModalConfig({...modalConfig, isOpen: false})}
+        >
+           <div 
+                className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-scale-in"
+                onClick={(e) => e.stopPropagation()}
+            >
               <div className="flex justify-between items-center mb-6">
                  <h3 className="font-bold text-xl text-slate-900 dark:text-white">
                     {modalConfig.type === 'smart_sms' ? 'تسجيل ذكي (SMS)' : (modalConfig.type === 'transfer' ? 'تحويل أموال' : 'استلام أموال')}

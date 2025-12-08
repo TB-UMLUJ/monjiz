@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import { Transaction, TransactionType, UserSettings } from '../types';
 import { storageService } from '../services/storage';
@@ -401,24 +402,27 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
 
       {/* List */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden min-h-[500px]">
-          <div className="divide-y divide-slate-50 dark:divide-slate-800">
+          <div className="space-y-2 md:space-y-0 md:divide-y md:divide-slate-50 md:dark:divide-slate-800">
             {filteredData.map((tx, index) => (
               <div 
                 key={tx.id}
-                onClick={(e) => {
-                    // Open details if not clicking edit
-                    setSelectedTx(tx);
-                }}
-                className="p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 transition-colors animate-slide-up relative cursor-pointer group"
+                onClick={() => setSelectedTx(tx)}
+                className="p-4 md:flex-row md:justify-between items-center gap-3 transition-colors animate-slide-up relative cursor-pointer group border-b border-slate-100 dark:border-slate-800 md:border-0 rounded-none hover:bg-slate-50 dark:hover:bg-slate-800/50 flex flex-row-reverse"
                 style={{ animationDelay: `${index * 0.05}s` }}
               >
-                <div className="flex items-center gap-3 md:gap-4 w-full sm:w-auto">
+                 <div className="text-left shrink-0">
+                    <span className={`font-bold text-base md:text-lg block ${tx.type === TransactionType.INCOME ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-800 dark:text-slate-200'}`}>
+                    {tx.type === TransactionType.INCOME ? '+' : '-'}{tx.amount.toLocaleString('en-US')}
+                    </span>
+                    {(tx.fee || 0) > 0 && <span className="text-[10px] text-rose-500 block">رسوم: {Number(tx.fee).toFixed(2)}</span>}
+                </div>
+                <div className="flex items-center gap-3 md:gap-4 flex-1 min-w-0">
                     <div className={`p-3 rounded-full shrink-0 ${tx.type === TransactionType.INCOME ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400' : 'bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400'}`}>
                       {tx.type === TransactionType.INCOME ? <ArrowUpRight size={20} /> : <ArrowDownLeft size={20} />}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                          <h4 className="font-bold text-slate-800 dark:text-slate-200 text-sm md:text-base">{tx.merchant || tx.category}</h4>
+                          <h4 className="font-bold text-slate-800 dark:text-slate-200 text-sm md:text-base truncate">{tx.merchant || tx.category}</h4>
                           {tx.operationKind && <span className="text-[10px] bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-slate-500">{tx.operationKind}</span>}
                       </div>
                       
@@ -435,15 +439,6 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
                       )}
                     </div>
                 </div>
-                 
-                <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto mt-2 sm:mt-0">
-                    <div className="text-right">
-                        <span className={`font-bold text-base md:text-lg block ${tx.type === TransactionType.INCOME ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-800 dark:text-slate-200'}`}>
-                        {tx.type === TransactionType.INCOME ? '+' : '-'}{tx.amount.toLocaleString('en-US')}
-                        </span>
-                        {(tx.fee || 0) > 0 && <span className="text-[10px] text-rose-500 block">رسوم: {Number(tx.fee).toFixed(2)}</span>}
-                    </div>
-                 </div>
               </div>
             ))}
             {filteredData.length === 0 && (
@@ -458,8 +453,14 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
       
       {/* Add / Edit Transaction Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-             <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-3xl p-6 shadow-2xl animate-scale-in border border-slate-200 dark:border-slate-800 max-h-[95vh] overflow-y-auto">
+        <div 
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in"
+            onClick={() => setShowAddModal(false)}
+        >
+             <div 
+                className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-3xl p-6 shadow-2xl animate-scale-in border border-slate-200 dark:border-slate-800 max-h-[95vh] overflow-y-auto"
+                onClick={(e) => e.stopPropagation()}
+             >
                 <div className="flex justify-between items-center mb-6 border-b border-slate-100 dark:border-slate-800 pb-4">
                     <h3 className="font-bold text-xl text-slate-800 dark:text-white">
                         {editingId ? 'تعديل العملية' : 'تسجيل عملية يدوياً'}
@@ -489,7 +490,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
 
                     <div className="grid grid-cols-2 gap-4">
                         {/* Amount & Fee */}
-                        <div className="col-span-2 md:col-span-1">
+                        <div className="col-span-1">
                             <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">المبلغ</label>
                             <div className="relative">
                                 <input 
@@ -502,7 +503,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
                                 <span className="absolute left-4 top-4 text-slate-400 text-xs font-bold">SAR</span>
                             </div>
                         </div>
-                        <div className="col-span-2 md:col-span-1">
+                        <div className="col-span-1">
                              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">الرسوم (اختياري)</label>
                              <div className="relative">
                                 <input 
@@ -532,7 +533,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
                         </div>
 
                         {/* Category & Operation Kind */}
-                        <div className="col-span-2 md:col-span-1">
+                        <div className="col-span-1">
                             <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">التصنيف</label>
                             <select 
                             required
@@ -544,7 +545,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
                             {categories.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                         </div>
-                        <div className="col-span-2 md:col-span-1">
+                        <div className="col-span-1">
                              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">نوع العملية (تفصيلي)</label>
                              <select 
                                 className="w-full p-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-slate-700 dark:text-slate-300 transition-all font-medium"
@@ -557,7 +558,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
                         </div>
                         
                         {/* Card & Payment Method */}
-                        <div className="col-span-2 md:col-span-1">
+                        <div className="col-span-1">
                             <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">الحساب / البطاقة</label>
                             <select 
                             className="w-full p-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-slate-700 dark:text-slate-300 transition-all text-sm font-medium"
@@ -568,7 +569,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
                             {settings.cards.map(c => <option key={c.id} value={c.id}>{c.bankName} - {c.cardNumber}</option>)}
                             </select>
                         </div>
-                        <div className="col-span-2 md:col-span-1">
+                        <div className="col-span-1">
                              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">وسيلة الدفع</label>
                              <input 
                                 type="text"
@@ -580,24 +581,24 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
                         </div>
 
                         {/* Date & Time */}
-                        <div className="col-span-2 md:col-span-1">
+                        <div className="col-span-1">
                              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">التاريخ</label>
                              <input type="date" required className="w-full p-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none dark:text-white" value={formTx.date} onChange={e => setFormTx({...formTx, date: e.target.value})} />
                         </div>
-                        <div className="col-span-2 md:col-span-1">
+                        <div className="col-span-1">
                              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">الوقت</label>
                              <input type="time" required className="w-full p-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none dark:text-white" value={formTx.time} onChange={e => setFormTx({...formTx, time: e.target.value})} />
                         </div>
 
                         {/* Extra Details */}
-                        <div className="col-span-2 md:col-span-1">
+                        <div className="col-span-1">
                              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">الدولة</label>
                              <div className="relative">
                                 <Globe className="absolute right-3 top-3.5 text-slate-400" size={16}/>
                                 <input type="text" className="w-full p-3 pr-10 bg-slate-50 dark:bg-slate-800 border-none rounded-xl outline-none dark:text-white text-sm" placeholder="اختياري" value={formTx.country} onChange={e => setFormTx({...formTx, country: e.target.value})} />
                              </div>
                         </div>
-                        <div className="col-span-2 md:col-span-1">
+                        <div className="col-span-1">
                              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">رقم مرجعي</label>
                              <div className="relative">
                                 <Hash className="absolute right-3 top-3.5 text-slate-400" size={16}/>
@@ -638,8 +639,14 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
 
       {/* Transaction Details Modal */}
       {selectedTx && !showAddModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-            <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-3xl shadow-2xl animate-scale-in border border-slate-200 dark:border-slate-800">
+        <div 
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in"
+            onClick={() => { setSelectedTx(null); setShowDeleteConfirm(false); }}
+        >
+            <div 
+                className="bg-white dark:bg-slate-900 w-full max-w-md rounded-3xl shadow-2xl animate-scale-in border border-slate-200 dark:border-slate-800"
+                onClick={(e) => e.stopPropagation()}
+            >
                 {/* Header */}
                 <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-start">
                     <div>
@@ -760,8 +767,14 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
 
       {/* Smart SMS Modal */}
       {showSmartModal && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-              <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-3xl p-6 shadow-2xl border border-indigo-100 dark:border-slate-700 animate-scale-in">
+          <div 
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in"
+            onClick={() => setShowSmartModal(false)}
+          >
+              <div 
+                className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-3xl p-6 shadow-2xl border border-indigo-100 dark:border-slate-700 animate-scale-in"
+                onClick={(e) => e.stopPropagation()}
+              >
                   <div className="flex justify-between items-center mb-4">
                       <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
                           <MessageSquarePlus size={24} />
