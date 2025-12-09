@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>منجز - Monjez</title>
     
+    <link rel="manifest" href="/manifest.json" />
+    
     <!-- FIX: Robust Polyfill for process.env to prevent "white screen" crash on Vercel/Netlify -->
     <script>
       (function() {
@@ -130,7 +132,8 @@
     "html2canvas": "https://esm.sh/html2canvas@1.4.1",
     "jspdf": "https://esm.sh/jspdf@2.5.1",
     "@babel/runtime/helpers/typeof": "https://esm.sh/@babel/runtime/helpers/typeof",
-    "fflate": "https://esm.sh/fflate@0.8.2"
+    "fflate": "https://esm.sh/fflate@0.8.2",
+    "web-push": "https://aistudiocdn.com/web-push@^3.6.7"
   }
 }
 </script>
@@ -139,5 +142,18 @@
   <body class="transition-colors duration-300">
     <div id="root"></div>
   <script type="module" src="/index.tsx"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/service-worker.js')
+          .then(registration => {
+            console.log('SW registered: ', registration);
+          })
+          .catch(registrationError => {
+            console.log('SW registration failed: ', registrationError);
+          });
+      });
+    }
+  </script>
 </body>
 </html>

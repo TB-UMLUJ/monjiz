@@ -1,10 +1,9 @@
-
-
 import React, { useState, useEffect, useRef } from 'react';
 import { UserSettings, IncomeSource, BankCard, ThemeOption, LogoPosition, EntityLogo, Allowance, ReportConfig, Transaction, Loan, Bill } from '../types';
 import { storageService } from '../services/storage';
 import { Save, Settings as SettingsIcon, DollarSign, Calendar, Trash2, UploadCloud, Calculator, Check, FileText, Printer, CheckSquare, Square, X, Download, Plus, Loader2, CreditCard, Palette, Shield, Lock, Image as ImageIcon, Layout as LayoutIcon } from 'lucide-react';
 import { useNotification } from '../contexts/NotificationContext';
+import PwaManager from '../components/PwaManager';
 
 // Libraries for PDF Generation
 // @ts-ignore
@@ -416,6 +415,7 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings }) => {
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20 md:pb-10 animate-fade-in px-2 md:px-0">
+      
       <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4">
         <h2 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2"><SettingsIcon size={32} className="text-[#bef264]"/> إعدادات النظام</h2>
         
@@ -430,8 +430,11 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings }) => {
       </div>
 
       <form onSubmit={handleSave} className="space-y-6">
+
+        {/* PWA Manager */}
+        <PwaManager />
         
-        {/* App Customization Section (New) */}
+        {/* App Customization Section */}
         <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
              <div className="flex justify-between items-center mb-6 border-b border-slate-100 dark:border-slate-800 pb-4">
                  <div className="flex items-center gap-3"><LayoutIcon className="text-pink-500" /><h3 className="font-bold text-slate-900 dark:text-white">تخصيص الواجهة والشعار</h3></div>

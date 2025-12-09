@@ -186,6 +186,16 @@ ALTER TABLE public.custom_categories ADD COLUMN IF NOT EXISTS icon TEXT;
 ALTER TABLE public.custom_categories ADD COLUMN IF NOT EXISTS color VARCHAR(20);
 ALTER TABLE public.custom_categories ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
 
+-- PUSH SUBSCRIPTIONS (New for PWA)
+CREATE TABLE IF NOT EXISTS public.push_subscriptions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
+    endpoint TEXT NOT NULL,
+    keys JSONB NOT NULL,
+    icon_url TEXT, -- To store custom icon URL for the app notification
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 -- *** MIGRATION COMMANDS ***
 -- Run these to fix existing tables
 ALTER TABLE public.loans ALTER COLUMN icon TYPE TEXT;
