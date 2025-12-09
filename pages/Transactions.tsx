@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Transaction, TransactionType, UserSettings } from '../types';
 import { storageService } from '../services/storage';
@@ -246,7 +247,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
              const currentBal = card.balance || 0;
              let newBalance = currentBal;
 
-             if (parsed.newBalance !== undefined) {
+             if (parsed.newBalance !== undefined && parsed.newBalance !== null) {
                  // Use exact balance from SMS
                  newBalance = parsed.newBalance;
              } else {
@@ -292,7 +293,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
          setSmartSmsText('');
 
          let successMessage = `تم إضافة العملية على ${cardName}`;
-         if (parsed.newBalance !== undefined) {
+         if (parsed.newBalance !== undefined && parsed.newBalance !== null) {
              successMessage += ` وتحديث الرصيد إلى ${parsed.newBalance}`;
          }
          notify(successMessage, 'success');

@@ -328,7 +328,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       setTransactions(freshTransactions);
 
       let successMessage = `تم إضافة العملية "${parsedData.merchant}" بنجاح`;
-      if (parsedData.newBalance !== undefined) {
+      if (parsedData.newBalance !== undefined && parsedData.newBalance !== null) {
           successMessage += ` وتحديث الرصيد إلى ${parsedData.newBalance}`;
       }
       notify(successMessage, 'success');
