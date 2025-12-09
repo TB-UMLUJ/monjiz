@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
+
+
+import React, { useState, useEffect } from 'react';
 import { authService } from '../services/auth';
-import { Lock, ArrowLeft, ShieldCheck, Loader2 } from 'lucide-react';
+import { storageService } from '../services/storage';
+import { Lock, ArrowLeft, ShieldCheck, Loader2, Wallet } from 'lucide-react';
 
 interface LoginProps {
   onLoginSuccess: () => void;
@@ -10,6 +13,23 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [logoUrl, setLogoUrl] = useState<string>("");
+
+  useEffect(() => {
+    // Attempt to fetch settings (including logo) even before login
+    // Since the app uses a fixed DEFAULT_USER_ID, we can fetch public settings
+    const fetchLogo = async () => {
+        try {
+            const settings = await storageService.getSettings();
+            if (settings && settings.appLogo) {
+                setLogoUrl(settings.appLogo);
+            }
+        } catch (e) {
+            // Ignore error if fetch fails
+        }
+    };
+    fetchLogo();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,13 +82,23 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       <div className="relative z-10 w-full max-w-md bg-white/80 dark:bg-slate-950/90 backdrop-blur-xl border border-white/50 dark:border-slate-800 rounded-[2.5rem] shadow-2xl dark:shadow-black/70 p-8 md:p-12 animate-scale-in">
         
         <div className="flex flex-col items-center mb-10">
-          <div className="mb-8 relative group">
-             <div className="absolute inset-0 bg-gradient-to-r from-emerald-500 to-[#bef264] rounded-full blur-2xl opacity-20 group-hover:opacity-40 transition-opacity"></div>
-             <img 
-               src="https://f.top4top.io/p_3619agw9o1.png" 
-               alt="Logo" 
-               className="h-28 w-auto object-contain relative z-10 drop-shadow-sm" 
-             />
+          <div className="mb-8 relative group flex justify-center">
+             {logoUrl ? (
+                 <>
+                 <div className="absolute inset-0 bg-gradient-to-r from-emerald-500 to-[#bef264] rounded-full blur-2xl opacity-20 group-hover:opacity-40 transition-opacity"></div>
+                 <img 
+                   src={logoUrl} 
+                   alt="Logo" 
+                   className="h-28 w-auto object-contain relative z-10 drop-shadow-sm" 
+                 />
+                 </>
+             ) : (
+                 <div className="relative z-10 flex flex-col items-center justify-center">
+                     <div className="w-24 h-24 bg-gradient-to-br from-eerie-black to-slate-800 dark:from-[#bef264] dark:to-emerald-400 rounded-3xl flex items-center justify-center shadow-2xl mb-4">
+                        <Wallet size={48} className="text-white dark:text-slate-900" />
+                     </div>
+                 </div>
+             )}
           </div>
           <h1 className="text-3xl font-bold text-eerie-black dark:text-white mb-2 tracking-tight">مرحباً بعودتك</h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm">

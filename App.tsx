@@ -1,3 +1,5 @@
+
+
 import React, { useEffect, useState } from 'react';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
@@ -165,7 +167,7 @@ const AppContent: React.FC = () => {
   }
 
   return (
-    <Layout activeTab={activeTab} onTabChange={setActiveTab} onLogout={handleLogout}>
+    <Layout activeTab={activeTab} onTabChange={setActiveTab} onLogout={handleLogout} settings={settings}>
       <div className="animate-fade-in text-slate-900 dark:text-slate-100">
          {renderContent()}
       </div>

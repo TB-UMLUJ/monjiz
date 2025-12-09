@@ -154,6 +154,7 @@ export interface UserSettings {
   privacyMode: boolean; // New: local state usually, but can persist
   customCategories: CustomCategory[]; // New
   recurringTransactions: RecurringTransaction[]; // New
+  appLogo?: string; // New: Application Logo (Base64)
 }
 
 export interface DashboardStats {

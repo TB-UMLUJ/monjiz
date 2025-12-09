@@ -1,7 +1,9 @@
+
+
 import React, { useState, useEffect, useRef } from 'react';
 import { UserSettings, IncomeSource, BankCard, ThemeOption, LogoPosition, EntityLogo, Allowance, ReportConfig, Transaction, Loan, Bill } from '../types';
 import { storageService } from '../services/storage';
-import { Save, Settings as SettingsIcon, DollarSign, Calendar, Trash2, UploadCloud, Calculator, Check, FileText, Printer, CheckSquare, Square, X, Download, Plus, Loader2, CreditCard, Palette, Shield, Lock, Image as ImageIcon } from 'lucide-react';
+import { Save, Settings as SettingsIcon, DollarSign, Calendar, Trash2, UploadCloud, Calculator, Check, FileText, Printer, CheckSquare, Square, X, Download, Plus, Loader2, CreditCard, Palette, Shield, Lock, Image as ImageIcon, Layout as LayoutIcon } from 'lucide-react';
 import { useNotification } from '../contexts/NotificationContext';
 
 // Libraries for PDF Generation
@@ -34,6 +36,7 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [uploadType, setUploadType] = useState<'entity' | 'app'>('entity'); // Track if uploading bank logo or app logo
 
   // Report State
   const [reportConfig, setReportConfig] = useState<ReportConfig>({
@@ -199,7 +202,8 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings }) => {
   };
 
   // --- Image Editor Logic ---
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, type: 'entity' | 'app') => {
+      setUploadType(type);
       const file = e.target.files?.[0];
       if (file) {
           if (file.size > 5000000) { notify('حجم الصورة كبير جداً', 'error'); return; }
@@ -223,8 +227,11 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings }) => {
       img.onload = () => {
           // Clear
           ctx.clearRect(0, 0, canvas.width, canvas.height);
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          // Only fill background white if not transparent PNG intended? 
+          // For app logo, transparency is good. For entity logo, maybe white is better.
+          // Let's use transparent for flexibility.
+          // ctx.fillStyle = '#ffffff';
+          // ctx.fillRect(0, 0, canvas.width, canvas.height);
 
           ctx.save();
           // Center & Transform
@@ -273,15 +280,26 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings }) => {
 
   const handleMouseUp = () => setIsDragging(false);
 
-  const saveEditedLogo = async () => {
-      if (!canvasRef.current || !newLogoName) { notify('الرجاء إدخال اسم الجهة', 'error'); return; }
+  const saveEditedImage = async () => {
+      if (!canvasRef.current) return;
+      
       try {
-          const finalUrl = canvasRef.current.toDataURL('image/jpeg', 0.8);
-          const updated = await storageService.saveLogo(newLogoName, finalUrl);
-          setLogos(updated);
-          setNewLogoName('');
+          const finalUrl = canvasRef.current.toDataURL('image/png'); // PNG supports transparency
+          
+          if (uploadType === 'app') {
+               // Update form data for App Logo
+               setFormData(prev => ({ ...prev, appLogo: finalUrl }));
+               notify('تم تحديث شعار الموقع، لا تنس حفظ الإعدادات', 'success');
+          } else {
+               // Save Bank/Entity Logo directly
+               if (!newLogoName) { notify('الرجاء إدخال اسم الجهة', 'error'); return; }
+               const updated = await storageService.saveLogo(newLogoName, finalUrl);
+               setLogos(updated);
+               setNewLogoName('');
+               notify('تم حفظ شعار الجهة بنجاح', 'success');
+          }
+          
           setRawImage(null); 
-          notify('تم حفظ الشعار بنجاح', 'success');
       } catch (e) { notify('فشل الحفظ', 'error'); }
   };
 
@@ -394,6 +412,8 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings }) => {
       id: 'default', name: 'Default', amount: 0, dayOfMonth: 1, basicSalary: 0, gosiDeduction: 0, allowances: [] 
   };
 
+  const appLogoSrc = formData.appLogo;
+
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20 md:pb-10 animate-fade-in px-2 md:px-0">
       <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4">
@@ -410,6 +430,65 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings }) => {
       </div>
 
       <form onSubmit={handleSave} className="space-y-6">
+        
+        {/* App Customization Section (New) */}
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
+             <div className="flex justify-between items-center mb-6 border-b border-slate-100 dark:border-slate-800 pb-4">
+                 <div className="flex items-center gap-3"><LayoutIcon className="text-pink-500" /><h3 className="font-bold text-slate-900 dark:text-white">تخصيص الواجهة والشعار</h3></div>
+             </div>
+             
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                  <div>
+                      <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-3">شعار الموقع (النظام)</h4>
+                      <p className="text-xs text-slate-500 mb-4">هذا الشعار سيظهر في صفحة الدخول، القائمة الجانبية، والتقارير المطبوعة.</p>
+                      
+                      <div className="flex items-center gap-4">
+                          <div className="w-24 h-24 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl flex items-center justify-center bg-slate-50 dark:bg-slate-800 overflow-hidden">
+                              {appLogoSrc ? (
+                                  <img src={appLogoSrc} alt="App Logo" className="max-w-full max-h-full object-contain" />
+                              ) : (
+                                  <span className="text-xs text-slate-400 text-center px-1">لا يوجد شعار</span>
+                              )}
+                          </div>
+                          <div className="flex-1">
+                              <label className="flex items-center justify-center w-full p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm gap-2">
+                                  <UploadCloud className="text-slate-400" size={20} />
+                                  <span className="text-sm font-bold text-slate-600 dark:text-slate-300">رفع شعار جديد</span>
+                                  <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFileSelect(e, 'app')} />
+                              </label>
+                              {formData.appLogo && (
+                                  <button 
+                                    type="button" 
+                                    onClick={() => setFormData(prev => ({...prev, appLogo: ''}))}
+                                    className="text-xs text-rose-500 mt-2 hover:underline"
+                                  >
+                                    إزالة الشعار واستخدام الافتراضي
+                                  </button>
+                              )}
+                          </div>
+                      </div>
+                  </div>
+
+                   {/* Theme Settings */}
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-3">نمط الألوان (الثيم)</h4>
+                    <div className="flex gap-2">
+                        {(['light', 'dark', 'system'] as const).map(theme => (
+                            <div 
+                                key={theme}
+                                onClick={() => setFormData(prev => ({ ...prev, theme }))}
+                                className={`flex-1 p-3 rounded-xl border cursor-pointer text-center transition-all ${formData.theme === theme ? 'bg-purple-50 border-purple-200 text-purple-700 dark:bg-purple-900/20 dark:border-purple-800 dark:text-purple-300 ring-1 ring-purple-500' : 'border-slate-200 hover:border-slate-300 dark:border-slate-700 dark:hover:border-slate-600 text-slate-500'}`}
+                            >
+                                <p className="font-bold text-sm capitalize">
+                                    {theme === 'light' ? 'فاتح' : theme === 'dark' ? 'داكن' : 'النظام'}
+                                </p>
+                            </div>
+                        ))}
+                    </div>
+                  </div>
+             </div>
+        </div>
+
         {/* Salary Calculator */}
         <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
              <div className="flex justify-between items-center mb-6 border-b border-slate-100 dark:border-slate-800 pb-4">
@@ -493,27 +572,6 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings }) => {
                      </div>
                  </div>
              </div>
-        </div>
-        
-        {/* Theme Settings */}
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
-            <div className="flex items-center gap-3 mb-6 border-b border-slate-100 dark:border-slate-800 pb-4">
-                <Palette className="text-purple-500" />
-                <h3 className="font-bold text-slate-900 dark:text-white">المظهر والتخصيص</h3>
-            </div>
-            <div className="flex gap-4">
-                {(['light', 'dark', 'system'] as const).map(theme => (
-                    <div 
-                        key={theme}
-                        onClick={() => setFormData(prev => ({ ...prev, theme }))}
-                        className={`flex-1 p-4 rounded-xl border cursor-pointer text-center transition-all ${formData.theme === theme ? 'bg-purple-50 border-purple-200 text-purple-700 dark:bg-purple-900/20 dark:border-purple-800 dark:text-purple-300 ring-1 ring-purple-500' : 'border-slate-200 hover:border-slate-300 dark:border-slate-700 dark:hover:border-slate-600 text-slate-500'}`}
-                    >
-                        <p className="font-bold text-sm capitalize">
-                            {theme === 'light' ? 'فاتح' : theme === 'dark' ? 'داكن' : 'النظام'}
-                        </p>
-                    </div>
-                ))}
-            </div>
         </div>
 
         {/* Bank Cards Management */}
@@ -606,7 +664,7 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings }) => {
                                  <UploadCloud className="mx-auto mb-1" />
                                  <span className="text-xs">رفع صورة الشعار</span>
                              </div>
-                             <input type="file" className="hidden" accept="image/*" onChange={handleFileSelect} />
+                             <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFileSelect(e, 'entity')} />
                          </label>
                      </div>
                  </div>
@@ -735,7 +793,7 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings }) => {
 
                   {/* Watermark */}
                   <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none">
-                      <img src="https://f.top4top.io/p_3619agw9o1.png" className="w-[500px]" alt="watermark"/>
+                       {appLogoSrc && <img src={appLogoSrc} className="w-[500px]" alt="watermark"/>}
                   </div>
 
                   {/* Header */}
@@ -745,8 +803,12 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings }) => {
                           <p className="text-slate-500 text-sm">تاريخ التقرير: {new Date().toLocaleDateString('ar-SA')}</p>
                       </div>
                       <div className="text-left">
-                          <img src="https://f.top4top.io/p_3619agw9o1.png" alt="Logo" className="h-16 object-contain" />
-                          <p className="text-xs text-slate-400 mt-1 font-bold">منجز - Monjez</p>
+                          {appLogoSrc ? (
+                              <img src={appLogoSrc} alt="Logo" className="h-16 object-contain" />
+                          ) : (
+                              <h2 className="text-2xl font-bold text-slate-800">منجز</h2>
+                          )}
+                          <p className="text-xs text-slate-400 mt-1 font-bold">Monjez Financial App © 2025</p>
                       </div>
                   </div>
 
@@ -884,11 +946,13 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings }) => {
           </div>
       )}
 
-      {/* Image Editor Modal (Existing) */}
+      {/* Image Editor Modal (Modified to handle both entity and app logos) */}
       {rawImage && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in">
              <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-2xl p-6 shadow-2xl animate-scale-in">
-                <h3 className="font-bold text-lg mb-4 text-slate-900 dark:text-white">تعديل الشعار</h3>
+                <h3 className="font-bold text-lg mb-4 text-slate-900 dark:text-white">
+                    {uploadType === 'app' ? 'تعديل شعار التطبيق' : 'تعديل شعار الجهة'}
+                </h3>
                 <div 
                     className="relative w-full aspect-square bg-slate-200 dark:bg-slate-800 rounded-xl overflow-hidden cursor-move"
                     onMouseDown={handleMouseDown}
@@ -913,7 +977,7 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings }) => {
                 </div>
                 <div className="flex gap-2 mt-6">
                     <button type="button" onClick={() => setRawImage(null)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg font-bold">إلغاء</button>
-                    <button type="button" onClick={saveEditedLogo} className="flex-1 py-3 bg-emerald-600 text-white rounded-lg font-bold flex items-center justify-center gap-2"><Check size={16}/> اعتماد</button>
+                    <button type="button" onClick={saveEditedImage} className="flex-1 py-3 bg-emerald-600 text-white rounded-lg font-bold flex items-center justify-center gap-2"><Check size={16}/> اعتماد</button>
                 </div>
             </div>
         </div>

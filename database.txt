@@ -37,6 +37,7 @@ ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS monthly_limit DECIMAL(12, 2
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS alert_threshold INTEGER DEFAULT 80;
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS theme VARCHAR(20) DEFAULT 'system';
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS budget_rollover BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS app_logo TEXT; -- New: Store App Logo Base64
 
 -- INCOME SOURCES
 CREATE TABLE IF NOT EXISTS public.income_sources (
@@ -203,3 +204,4 @@ ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS operation_kind VARCHAR(
 ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS card_last4 VARCHAR(4);
 ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS country VARCHAR(100);
 ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50);
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS app_logo TEXT;

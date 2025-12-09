@@ -35,7 +35,8 @@ const DEFAULT_SETTINGS: UserSettings = {
   budgetRollover: false,
   privacyMode: false,
   customCategories: [],
-  recurringTransactions: []
+  recurringTransactions: [],
+  appLogo: ''
 };
 
 export const storageService = {
@@ -521,6 +522,7 @@ export const storageService = {
             theme: settingsData.theme || 'system',
             budgetRollover: settingsData.budget_rollover || false,
             privacyMode: false,
+            appLogo: settingsData.app_logo || '', // Load App Logo
             incomeSources: (incomeData || []).map((i: any) => {
                 const details = i.details || {};
                 return {
@@ -580,7 +582,8 @@ export const storageService = {
         monthly_limit: settings.monthlyLimit,
         alert_threshold: settings.alertThreshold,
         theme: settings.theme,
-        budget_rollover: settings.budgetRollover
+        budget_rollover: settings.budgetRollover,
+        app_logo: settings.appLogo // Save App Logo
     });
 
     // 2. Bank Cards (Smart Sync to preserve UUIDs)

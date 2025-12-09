@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
@@ -14,15 +16,17 @@ import {
   Eye,
   EyeOff
 } from 'lucide-react';
+import { UserSettings } from '../types';
 
 interface LayoutProps {
   children: React.ReactNode;
   activeTab: string;
   onTabChange: (tab: string) => void;
   onLogout: () => void;
+  settings?: UserSettings | null; // Receive settings to get the logo
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLogout }) => {
+const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLogout, settings }) => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [privacyMode, setPrivacyMode] = useState(false);
 
@@ -52,6 +56,9 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
     e.preventDefault();
     onLogout();
   };
+  
+  // Use appLogo from settings, if not available, it will be handled in JSX to show a placeholder
+  const logoSrc = settings?.appLogo;
 
   return (
     <div className="min-h-screen bg-ghost-white dark:bg-[#0f172a] flex font-tajawal text-eerie-black dark:text-slate-100 transition-colors duration-300">
@@ -69,11 +76,20 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
       {/* Sidebar Desktop */}
       <aside className="hidden md:flex flex-col w-72 bg-white dark:bg-slate-900 h-screen sticky top-0 border-l border-slate-100 dark:border-slate-800 px-6 py-8 z-40 transition-colors">
         <div className="flex items-center justify-center mb-10 px-2">
-          <img 
-            src="https://f.top4top.io/p_3619agw9o1.png" 
-            alt="Logo" 
-            className="h-16 w-auto object-contain"
-          />
+           {logoSrc ? (
+             <img 
+               src={logoSrc} 
+               alt="Logo" 
+               className="h-20 w-auto object-contain"
+             />
+           ) : (
+             <div className="flex flex-col items-center justify-center text-eerie-black dark:text-white">
+                 <div className="bg-[#bef264] p-3 rounded-2xl mb-2 shadow-sm">
+                    <Wallet size={32} className="text-slate-900" />
+                 </div>
+                 <span className="font-bold text-xl tracking-tight">منجز</span>
+             </div>
+           )}
         </div>
         
         <nav className="flex-1 space-y-2">
@@ -129,11 +145,20 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
         {/* Top Header */}
         <header className="px-4 md:px-8 py-5 flex items-center justify-between bg-ghost-white/80 dark:bg-slate-900/80 backdrop-blur-md md:bg-transparent sticky top-0 z-30 md:static border-b md:border-none border-slate-100 dark:border-slate-800 transition-colors">
            <div className="md:hidden flex items-center pt-2">
-              <img 
-                src="https://f.top4top.io/p_3619agw9o1.png" 
-                alt="Logo" 
-                className="h-12 w-auto object-contain"
-              />
+              {logoSrc ? (
+                <img 
+                  src={logoSrc} 
+                  alt="Logo" 
+                  className="h-10 w-auto object-contain"
+                />
+              ) : (
+                <div className="flex items-center gap-2">
+                    <div className="bg-[#bef264] p-1.5 rounded-lg">
+                        <Wallet size={20} className="text-slate-900" />
+                    </div>
+                    <span className="font-bold text-lg text-slate-800 dark:text-white">منجز</span>
+                </div>
+              )}
            </div>
 
            {/* Search Bar (Desktop) */}
