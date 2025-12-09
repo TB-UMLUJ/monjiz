@@ -48,7 +48,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   };
 
   return (
-    <div className="min-h-screen relative flex items-center justify-center p-4 font-tajawal overflow-hidden transition-colors bg-slate-50 dark:bg-[#020617]" dir="rtl">
+    <div className="min-h-screen relative flex items-center justify-center p-4 font-tajawal overflow-hidden transition-colors bg-ghost-white dark:bg-[#020617]" dir="rtl">
       
       {/* Background Ambience (Light Mode) */}
       <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] rounded-full bg-emerald-200/40 blur-[120px] dark:hidden pointer-events-none" />
@@ -70,7 +70,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                className="h-28 w-auto object-contain relative z-10 drop-shadow-sm" 
              />
           </div>
-          <h1 className="text-3xl font-bold text-slate-800 dark:text-white mb-2 tracking-tight">مرحباً بعودتك</h1>
+          <h1 className="text-3xl font-bold text-eerie-black dark:text-white mb-2 tracking-tight">مرحباً بعودتك</h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm">
              سجل دخولك لمتابعة محفظتك المالية
           </p>
@@ -105,7 +105,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-slate-900 dark:bg-[#bef264] text-white dark:text-slate-950 py-4 rounded-2xl font-bold text-lg hover:bg-slate-800 dark:hover:bg-[#a3e635] hover:shadow-lg hover:-translate-y-1 transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:hover:translate-y-0 disabled:hover:shadow-none animate-slide-up shadow-xl shadow-slate-200 dark:shadow-none" style={{animationDelay: '0.2s'}}
+            className="w-full bg-eerie-black dark:bg-[#bef264] text-white dark:text-slate-950 py-4 rounded-2xl font-bold text-lg hover:bg-black dark:hover:bg-[#a3e635] hover:shadow-lg hover:-translate-y-1 transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:hover:translate-y-0 disabled:hover:shadow-none animate-slide-up shadow-xl shadow-slate-200 dark:shadow-none" style={{animationDelay: '0.2s'}}
           >
             {isLoading ? <Loader2 className="animate-spin" /> : (
               <>

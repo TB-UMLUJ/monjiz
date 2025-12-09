@@ -1,5 +1,5 @@
 {
-  "name": "monjez",
+  "name": "منجز---monjez",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -17,8 +17,8 @@
     "@supabase/supabase-js": "2.39.7",
     "html2canvas": "1.4.1",
     "jspdf": "2.5.1",
-    "fflate": "0.8.2",
-    "@babel/runtime": "^7.23.9"
+    "@babel/runtime/helpers/typeof": "latest",
+    "fflate": "0.8.2"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

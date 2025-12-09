@@ -54,7 +54,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] dark:bg-[#0f172a] flex font-tajawal text-slate-800 dark:text-slate-100 transition-colors duration-300">
+    <div className="min-h-screen bg-ghost-white dark:bg-[#0f172a] flex font-tajawal text-eerie-black dark:text-slate-100 transition-colors duration-300">
       <style>{`
         .privacy-mode .sensitive-data {
             filter: blur(6px);
@@ -86,11 +86,11 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
                 onClick={() => onTabChange(item.id)}
                 className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all duration-200 group ${
                   isActive 
-                    ? 'bg-[#bef264] text-slate-900 font-bold shadow-sm' 
-                    : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
+                    ? 'bg-eerie-black dark:bg-[#bef264] text-white dark:text-slate-900 font-bold shadow-sm' 
+                    : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-eerie-black dark:hover:text-white'
                 }`}
               >
-                <Icon size={22} strokeWidth={isActive ? 2.5 : 2} className={isActive ? 'text-slate-900' : 'text-slate-400 dark:text-slate-500 group-hover:text-slate-900 dark:group-hover:text-white'} />
+                <Icon size={22} strokeWidth={isActive ? 2.5 : 2} className={isActive ? 'text-white dark:text-slate-900' : 'text-slate-400 dark:text-slate-500 group-hover:text-eerie-black dark:group-hover:text-white'} />
                 <span className="text-base">{item.label}</span>
               </button>
             );
@@ -99,7 +99,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
 
         {/* Pro Card in Sidebar */}
         <div className="mt-auto pt-6">
-          <div className="bg-slate-900 dark:bg-slate-800 text-white p-5 rounded-3xl relative overflow-hidden group cursor-pointer hover:shadow-xl transition-all border dark:border-slate-700">
+          <div className="bg-eerie-black dark:bg-slate-800 text-white p-5 rounded-3xl relative overflow-hidden group cursor-pointer hover:shadow-xl transition-all border border-slate-800 dark:border-slate-700">
              <div className="absolute top-0 right-0 w-24 h-24 bg-[#bef264] rounded-full blur-2xl opacity-20 -mr-10 -mt-10 group-hover:opacity-30 transition-opacity"></div>
              <div className="relative z-10">
                <div className="bg-white/10 w-10 h-10 rounded-xl flex items-center justify-center mb-3">
@@ -127,7 +127,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col min-w-0 relative">
         {/* Top Header */}
-        <header className="px-4 md:px-8 py-5 flex items-center justify-between bg-white/80 dark:bg-slate-900/80 backdrop-blur-md md:bg-transparent sticky top-0 z-30 md:static border-b md:border-none border-slate-100 dark:border-slate-800 transition-colors">
+        <header className="px-4 md:px-8 py-5 flex items-center justify-between bg-ghost-white/80 dark:bg-slate-900/80 backdrop-blur-md md:bg-transparent sticky top-0 z-30 md:static border-b md:border-none border-slate-100 dark:border-slate-800 transition-colors">
            <div className="md:hidden flex items-center pt-2">
               <img 
                 src="https://f.top4top.io/p_3619agw9o1.png" 
@@ -137,7 +137,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
            </div>
 
            {/* Search Bar (Desktop) */}
-           <div className="hidden md:flex flex-1 max-w-xl bg-white dark:bg-slate-900 rounded-full px-4 py-2.5 border border-slate-200 dark:border-slate-800 focus-within:ring-2 focus-within:ring-[#bef264] focus-within:border-transparent transition-all shadow-sm">
+           <div className="hidden md:flex flex-1 max-w-xl bg-white dark:bg-slate-900 rounded-full px-4 py-2.5 border border-slate-200 dark:border-slate-800 focus-within:ring-2 focus-within:ring-eerie-black dark:focus-within:ring-[#bef264] focus-within:border-transparent transition-all shadow-sm">
               <Search className="text-slate-400 ml-3" size={20} />
               <input 
                 type="text" 
@@ -160,7 +160,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
               <div className="relative">
                 <button 
                   onClick={() => setShowNotifications(!showNotifications)}
-                  className={`w-10 h-10 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center border transition-all relative ${showNotifications ? 'border-[#bef264] bg-lime-50 dark:bg-lime-900/20 text-slate-900 dark:text-lime-400' : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:shadow-md'}`}
+                  className={`w-10 h-10 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center border transition-all relative ${showNotifications ? 'border-eerie-black dark:border-[#bef264] bg-slate-50 dark:bg-lime-900/20 text-eerie-black dark:text-lime-400' : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:text-eerie-black dark:hover:text-white hover:shadow-md'}`}
                 >
                   <Bell size={20} />
                   <span className="absolute top-2 right-2.5 w-2 h-2 bg-rose-500 rounded-full border border-white dark:border-slate-800"></span>
@@ -170,7 +170,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
                 {showNotifications && (
                   <div className="fixed md:absolute top-20 md:top-full left-1/2 -translate-x-1/2 md:translate-x-0 md:left-0 mt-3 w-[90vw] md:w-80 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-100 dark:border-slate-700 p-2 z-50 animate-fade-in origin-top-left">
                     <div className="flex justify-between items-center p-3 mb-2 border-b border-slate-50 dark:border-slate-700">
-                      <h4 className="font-bold text-sm text-slate-900 dark:text-white">الإشعارات</h4>
+                      <h4 className="font-bold text-sm text-eerie-black dark:text-white">الإشعارات</h4>
                       <button onClick={() => setShowNotifications(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X size={16}/></button>
                     </div>
                     <div className="space-y-1 max-h-64 overflow-y-auto">
@@ -191,10 +191,10 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
               </div>
               
               <div className="hidden md:flex items-center gap-3 pl-1 pr-4 py-1 bg-white dark:bg-slate-800 rounded-full border border-slate-200 dark:border-slate-700 cursor-pointer hover:shadow-md transition-all group" onClick={() => onTabChange('settings')}>
-                 <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-300 group-hover:bg-[#bef264] group-hover:text-slate-900 transition-colors">
+                 <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-300 group-hover:bg-eerie-black dark:group-hover:bg-[#bef264] group-hover:text-white dark:group-hover:text-slate-900 transition-colors">
                     <User size={16} />
                  </div>
-                 <span className="text-sm font-bold text-slate-700 dark:text-slate-200 ml-2 group-hover:text-slate-900 dark:group-hover:text-slate-100">عمر محمد</span>
+                 <span className="text-sm font-bold text-slate-700 dark:text-slate-200 ml-2 group-hover:text-eerie-black dark:group-hover:text-slate-100">عمر محمد</span>
               </div>
               
               <a
@@ -227,7 +227,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
               aria-current={isActive ? 'page' : undefined}
             >
               {isActive ? (
-                <div className="flex items-center justify-center gap-2 rounded-full transition-all duration-300 ease-out bg-slate-900 dark:bg-[#bef264] text-white dark:text-slate-900 px-5 py-2.5 shadow-md">
+                <div className="flex items-center justify-center gap-2 rounded-full transition-all duration-300 ease-out bg-eerie-black dark:bg-[#bef264] text-white dark:text-slate-900 px-5 py-2.5 shadow-md">
                   <Icon size={20} strokeWidth={2.5} />
                   <span className="text-sm font-bold whitespace-nowrap animate-fade-in">{item.label}</span>
                 </div>

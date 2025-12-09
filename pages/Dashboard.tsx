@@ -1,5 +1,4 @@
 
-
 import React, { useMemo, useState, useEffect } from 'react';
 import { Transaction, Loan, UserSettings, BankCard, TransactionType } from '../types';
 import { 
@@ -173,7 +172,6 @@ const Dashboard: React.FC<DashboardProps> = ({
   };
 
   const getLogoClasses = (pos?: string) => {
-      // Removed opacity-20 and made it fully clear. Centered but size adjusted.
       const base = "absolute object-contain z-0 pointer-events-none transition-all duration-300 opacity-100";
       return `${base} w-48 h-48 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2`;
   };
@@ -351,7 +349,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       {/* Page Title & AI Action */}
       <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-4 mb-2">
         <div>
-           <h2 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white">نظرة عامة</h2>
+           <h2 className="text-2xl md:text-3xl font-bold text-eerie-black dark:text-white">نظرة عامة</h2>
            <p className="text-sm md:text-base text-slate-500 dark:text-slate-400 mt-1">مرحباً عمر، إليك ملخص وضعك المالي اليوم.</p>
         </div>
         
@@ -359,9 +357,9 @@ const Dashboard: React.FC<DashboardProps> = ({
           <button 
              onClick={handleAiConsult}
              disabled={isLoadingAi}
-             className="flex items-center justify-center gap-2 bg-slate-900 dark:bg-[#bef264] text-white dark:text-slate-900 px-5 py-3 rounded-xl hover:bg-slate-800 dark:hover:bg-[#a3e635] transition-all shadow-lg shadow-slate-900/20 disabled:opacity-70 font-bold w-full md:w-auto"
+             className="flex items-center justify-center gap-2 bg-eerie-black dark:bg-[#bef264] text-white dark:text-slate-900 px-5 py-3 rounded-xl hover:bg-black dark:hover:bg-[#a3e635] transition-all shadow-lg shadow-slate-900/10 disabled:opacity-70 font-bold w-full md:w-auto"
           >
-             <Sparkles size={18} className={isLoadingAi ? "animate-spin" : "text-[#bef264] dark:text-slate-900"} />
+             <Sparkles size={18} className={isLoadingAi ? "animate-spin" : "text-vanila dark:text-slate-900"} />
              <span>{isLoadingAi ? 'جاري التحليل...' : 'تحليل مالي'}</span>
           </button>
         </div>
@@ -388,80 +386,82 @@ const Dashboard: React.FC<DashboardProps> = ({
           
           {/* New Financial Health & Safe-to-Spend Row */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              {/* Financial Health - Pastel Peach */}
+              <div className="bg-[#FFE8D6] dark:bg-slate-900 p-6 rounded-[2.5rem] shadow-sm border-none flex items-center justify-between hover:scale-[1.02] transition-transform duration-300">
                   <div>
-                      <h4 className="text-sm font-bold text-slate-500 mb-1">نقاط الصحة المالية</h4>
+                      <h4 className="text-sm font-bold text-slate-800 dark:text-slate-400 mb-1">نقاط الصحة المالية</h4>
                       <div className="flex items-center gap-2">
-                          <Activity className={healthScore > 70 ? 'text-emerald-500' : 'text-amber-500'} />
-                          <span className={`text-2xl font-bold ${healthScore > 70 ? 'text-emerald-500' : 'text-amber-500'}`}>{healthScore}/100</span>
+                          <Activity className={healthScore > 70 ? 'text-emerald-600' : 'text-amber-600'} />
+                          <span className={`text-3xl font-bold ${healthScore > 70 ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}`}>{healthScore}/100</span>
                       </div>
                   </div>
-                  <div className="w-16 h-16 rounded-full border-4 border-slate-100 dark:border-slate-800 flex items-center justify-center relative">
+                  <div className="w-16 h-16 rounded-full border-4 border-white/50 dark:border-slate-800 flex items-center justify-center relative">
                       <div className={`absolute inset-0 rounded-full border-4 ${healthScore > 70 ? 'border-emerald-500' : 'border-amber-500'}`} style={{clipPath: `inset(0 0 ${100 - healthScore}% 0)`}}></div>
-                      <span className="text-xs font-bold text-slate-400">{healthScore}%</span>
+                      <span className="text-xs font-bold text-slate-600 dark:text-slate-300">{healthScore}%</span>
                   </div>
               </div>
 
-              <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              {/* Safe to Spend - Pastel Light Grey (Builders style) */}
+              <div className="bg-[#F3F4F6] dark:bg-slate-900 p-6 rounded-[2.5rem] shadow-sm border-none flex items-center justify-between hover:scale-[1.02] transition-transform duration-300">
                   <div>
-                      <h4 className="text-sm font-bold text-slate-500 mb-1">قابل للصرف (الآن)</h4>
-                      <p className="text-xs text-slate-400 mb-2">إجمالي أرصدة البطاقات</p>
-                      <h3 className="text-2xl font-bold text-slate-900 dark:text-white sensitive-data">{safeToSpend.toLocaleString('en-US')} {settings.currency}</h3>
+                      <h4 className="text-sm font-bold text-slate-800 dark:text-slate-400 mb-1">قابل للصرف (الآن)</h4>
+                      <p className="text-xs text-slate-500 mb-2">إجمالي أرصدة البطاقات</p>
+                      <h3 className="text-3xl font-bold text-eerie-black dark:text-white sensitive-data">{safeToSpend.toLocaleString('en-US')} {settings.currency}</h3>
                   </div>
-                  <div className="p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-full text-indigo-500">
-                      <ShieldCheck size={24} />
+                  <div className="p-3 bg-white dark:bg-slate-800 rounded-full text-slate-700 dark:text-white">
+                      <ShieldCheck size={28} />
                   </div>
               </div>
           </div>
 
           {/* Stats Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
-             {/* Income */}
-             <div className="bg-white dark:bg-slate-900 p-4 md:p-6 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-800 flex items-center justify-between group hover:border-[#bef264] transition-colors cursor-pointer" onClick={() => onNavigate('transactions')}>
+             {/* Income - Pastel Mint (Partners style) */}
+             <div className="bg-[#D1FAE5] dark:bg-slate-900 p-6 rounded-[2.5rem] shadow-sm flex items-center justify-between group cursor-pointer hover:scale-[1.02] transition-transform duration-300 border-none dark:border dark:border-slate-800" onClick={() => onNavigate('transactions')}>
                 <div>
-                   <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 mb-2">
-                      <div className="p-2 bg-slate-50 dark:bg-slate-800 rounded-full group-hover:bg-[#bef264]/20 transition-colors">
-                        <Wallet size={18} className="text-slate-900 dark:text-white" />
+                   <div className="flex items-center gap-2 text-emerald-800 dark:text-slate-400 mb-2">
+                      <div className="p-2 bg-white/60 dark:bg-slate-800 rounded-full">
+                        <Wallet size={18} className="text-emerald-700 dark:text-white" />
                       </div>
-                      <span className="font-medium text-sm">الدخل</span>
+                      <span className="font-bold text-sm">الدخل</span>
                    </div>
-                   <h3 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white sensitive-data">{totalRealizedIncome.toLocaleString('en-US')} {settings.currency}</h3>
+                   <h3 className="text-2xl font-bold text-emerald-900 dark:text-white sensitive-data">{totalRealizedIncome.toLocaleString('en-US')} {settings.currency}</h3>
                 </div>
                 <div className="flex flex-col items-end">
-                   <span className="bg-[#bef264] text-slate-900 text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1">
+                   <span className="bg-white/60 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-400 text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1">
                       <ArrowUpRight size={14} />
                       1.78%
                    </span>
-                   <span className="text-xs text-slate-400 mt-1">عن الشهر الماضي</span>
+                   <span className="text-xs text-emerald-700/70 dark:text-slate-400 mt-1">عن الشهر الماضي</span>
                 </div>
              </div>
 
-             {/* Expense */}
-             <div className="bg-white dark:bg-slate-900 p-4 md:p-6 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-800 flex items-center justify-between group hover:border-rose-200 transition-colors cursor-pointer" onClick={() => onNavigate('transactions')}>
+             {/* Expense - Pastel Lavender (Scouts style) */}
+             <div className="bg-[#E9D5FF] dark:bg-slate-900 p-6 rounded-[2.5rem] shadow-sm flex items-center justify-between group cursor-pointer hover:scale-[1.02] transition-transform duration-300 border-none dark:border dark:border-slate-800" onClick={() => onNavigate('transactions')}>
                 <div>
-                   <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 mb-2">
-                      <div className="p-2 bg-slate-50 dark:bg-slate-800 rounded-full group-hover:bg-rose-50 dark:group-hover:bg-rose-900/20 transition-colors">
-                        <ArrowDownLeft size={18} className="text-slate-900 dark:text-white" />
+                   <div className="flex items-center gap-2 text-purple-800 dark:text-slate-400 mb-2">
+                      <div className="p-2 bg-white/60 dark:bg-slate-800 rounded-full">
+                        <ArrowDownLeft size={18} className="text-purple-700 dark:text-white" />
                       </div>
-                      <span className="font-medium text-sm">المصروفات</span>
+                      <span className="font-bold text-sm">المصروفات</span>
                    </div>
-                   <h3 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white sensitive-data">{totalExpense.toLocaleString('en-US')} {settings.currency}</h3>
+                   <h3 className="text-2xl font-bold text-purple-900 dark:text-white sensitive-data">{totalExpense.toLocaleString('en-US')} {settings.currency}</h3>
                 </div>
                 <div className="flex flex-col items-end">
-                   <span className="bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1">
+                   <span className="bg-white/60 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400 text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1">
                       <ArrowUpRight size={14} />
                       2.45%
                    </span>
-                   <span className="text-xs text-slate-400 mt-1">عن الشهر الماضي</span>
+                   <span className="text-xs text-purple-700/70 dark:text-slate-400 mt-1">عن الشهر الماضي</span>
                 </div>
              </div>
           </div>
 
           {/* Cashflow Chart */}
-          <div className="bg-white dark:bg-slate-900 p-4 md:p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-800">
+          <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-800">
              <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-8 gap-4">
                 <div>
-                   <h3 className="text-xl font-bold text-slate-900 dark:text-white">التدفق النقدي</h3>
+                   <h3 className="text-xl font-bold text-eerie-black dark:text-white">التدفق النقدي</h3>
                    <p className="text-sm text-slate-400">إجمالي الرصيد <span className="text-emerald-500 font-bold sensitive-data">{balance.toLocaleString('en-US')} {settings.currency}</span></p>
                 </div>
              </div>
@@ -496,32 +496,32 @@ const Dashboard: React.FC<DashboardProps> = ({
         {/* Right Column */}
         <div className="space-y-6">
            
-           {/* Where Did My Money Go? (Top 3) */}
-           <div className="bg-white dark:bg-slate-900 p-4 md:p-6 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-800">
+           {/* Where Did My Money Go? (Top 3) - Pastel Cream/Yellow */}
+           <div className="bg-[#FEF3C7] dark:bg-slate-900 p-6 md:p-8 rounded-[2.5rem] shadow-sm border-none hover:scale-[1.02] transition-transform duration-300">
                <div className="flex items-center gap-2 mb-4">
-                   <BarChart3 size={20} className="text-indigo-500" />
-                   <h3 className="font-bold text-lg text-slate-900 dark:text-white">أين ذهبت أموالي؟</h3>
+                   <BarChart3 size={20} className="text-amber-600 dark:text-indigo-400" />
+                   <h3 className="font-bold text-lg text-amber-900 dark:text-white">أين ذهبت أموالي؟</h3>
                </div>
                
-               <div className="space-y-4">
+               <div className="space-y-5">
                    {topExpenses.length > 0 ? topExpenses.map((item, idx) => (
                        <div key={idx} className="relative">
                            <div className="flex justify-between text-sm mb-1">
-                               <span className="font-bold text-slate-700 dark:text-slate-200">{item.name}</span>
-                               <span className="text-slate-500 sensitive-data">{item.value.toLocaleString('en-US')}</span>
+                               <span className="font-bold text-amber-800 dark:text-slate-200">{item.name}</span>
+                               <span className="text-amber-700/80 dark:text-slate-500 sensitive-data">{item.value.toLocaleString('en-US')}</span>
                            </div>
-                           <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                           <div className="w-full h-2.5 bg-white/50 dark:bg-slate-800 rounded-full overflow-hidden">
                                <div 
                                  className="h-full rounded-full transition-all" 
                                  style={{ width: `${(item.value / totalExpense) * 100}%`, backgroundColor: COLORS[idx % COLORS.length] }}
                                ></div>
                            </div>
                        </div>
-                   )) : <p className="text-center text-slate-400 text-sm py-4">لا توجد مصاريف مسجلة</p>}
+                   )) : <p className="text-center text-amber-600/50 dark:text-slate-400 text-sm py-4">لا توجد مصاريف مسجلة</p>}
                </div>
            </div>
 
-           {/* Cards Widget (Redesigned) */}
+           {/* Cards Widget */}
            <div 
               className="relative w-full aspect-[1.586] rounded-2xl overflow-hidden shadow-2xl transition-transform duration-300 hover:scale-[1.02] select-none touch-pan-y text-white font-tajawal" 
               onTouchStart={onTouchStart}
@@ -590,28 +590,28 @@ const Dashboard: React.FC<DashboardProps> = ({
            
            {/* Action Buttons */}
            <div className="flex gap-3 mb-4">
-                <button onClick={() => openModal('transfer')} className="flex-1 bg-white dark:bg-slate-800 text-slate-900 dark:text-white py-3 rounded-xl font-bold text-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-2 shadow-sm border border-slate-100 dark:border-slate-800">
+                <button onClick={() => openModal('transfer')} className="flex-1 bg-white dark:bg-slate-800 text-eerie-black dark:text-white py-3 rounded-xl font-bold text-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-2 shadow-sm border border-slate-100 dark:border-slate-800">
                     <Send size={16} className="text-[#bef264]" /> تحويل
                 </button>
-                <button onClick={() => openModal('receive')} className="flex-1 bg-white dark:bg-slate-800 text-slate-900 dark:text-white py-3 rounded-xl font-bold text-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-2 shadow-sm border border-slate-100 dark:border-slate-800">
+                <button onClick={() => openModal('receive')} className="flex-1 bg-white dark:bg-slate-800 text-eerie-black dark:text-white py-3 rounded-xl font-bold text-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-2 shadow-sm border border-slate-100 dark:border-slate-800">
                     <Download size={16} className="text-emerald-500" /> استلام
                 </button>
             </div>
 
-           {/* Recent Activities (Timeline) */}
-           <div className="bg-white dark:bg-slate-900 p-4 md:p-6 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-800">
+           {/* Recent Activities - Soft Off-White */}
+           <div className="bg-[#F8FAFC] dark:bg-slate-900 p-6 md:p-8 rounded-[2.5rem] shadow-sm border-none hover:scale-[1.02] transition-transform duration-300">
                <div className="flex justify-between items-center mb-6">
-                  <h3 className="font-bold text-lg text-slate-900 dark:text-white">النشاطات</h3>
+                  <h3 className="font-bold text-lg text-slate-800 dark:text-white">النشاطات</h3>
                   <MoreHorizontal size={20} className="text-slate-400 cursor-pointer" />
                </div>
                
-               <div className="space-y-6 relative before:absolute before:right-4 before:top-2 before:bottom-2 before:w-[2px] before:bg-slate-100 dark:before:bg-slate-800">
+               <div className="space-y-6 relative before:absolute before:right-4 before:top-2 before:bottom-2 before:w-[2px] before:bg-slate-200 dark:before:bg-slate-800">
                   <div className="relative pr-8">
-                     <div className="absolute right-0 top-1 w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-800 border-4 border-white dark:border-slate-900 flex items-center justify-center z-10">
+                     <div className="absolute right-0 top-1 w-8 h-8 rounded-full bg-white dark:bg-slate-800 border-4 border-slate-50 dark:border-slate-900 flex items-center justify-center z-10 shadow-sm">
                         <Zap size={14} className="text-amber-500" />
                      </div>
                      <p className="text-xs text-slate-400 mb-1">11:45 AM</p>
-                     <p className="text-sm font-medium text-slate-800 dark:text-slate-200">تنبيه انخفاض الرصيد</p>
+                     <p className="text-sm font-medium text-slate-700 dark:text-slate-200">تنبيه انخفاض الرصيد</p>
                   </div>
                </div>
            </div>
@@ -630,7 +630,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                 onClick={(e) => e.stopPropagation()}
             >
               <div className="flex justify-between items-center mb-6">
-                 <h3 className="font-bold text-xl text-slate-900 dark:text-white">
+                 <h3 className="font-bold text-xl text-eerie-black dark:text-white">
                     {modalConfig.type === 'smart_sms' ? 'تسجيل ذكي (SMS)' : (modalConfig.type === 'transfer' ? 'تحويل أموال' : 'استلام أموال')}
                  </h3>
                  <button onClick={() => setModalConfig({...modalConfig, isOpen: false})} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-500">
@@ -673,7 +673,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                           type="number" 
                           autoFocus
                           required
-                          className="w-full text-3xl font-bold bg-transparent outline-none border-b-2 border-slate-100 dark:border-slate-700 focus:border-[#bef264] py-2 text-slate-900 dark:text-white text-center"
+                          className="w-full text-3xl font-bold bg-transparent outline-none border-b-2 border-slate-100 dark:border-slate-700 focus:border-[#bef264] py-2 text-eerie-black dark:text-white text-center"
                           placeholder="0.00"
                           value={amount}
                           onChange={e => setAmount(e.target.value)}
@@ -707,7 +707,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                      <button 
                        type="submit" 
                        disabled={isProcessing}
-                       className={`w-full py-3.5 rounded-xl font-bold text-sm text-slate-900 transition-transform active:scale-95 flex items-center justify-center gap-2 mt-4 shadow-lg disabled:opacity-70 ${modalConfig.type === 'transfer' ? 'bg-[#bef264] hover:bg-[#a3e635]' : 'bg-white hover:bg-slate-50 border border-slate-200'}`}
+                       className={`w-full py-3.5 rounded-xl font-bold text-sm text-eerie-black transition-transform active:scale-95 flex items-center justify-center gap-2 mt-4 shadow-lg disabled:opacity-70 ${modalConfig.type === 'transfer' ? 'bg-[#bef264] hover:bg-[#a3e635]' : 'bg-white hover:bg-slate-50 border border-slate-200'}`}
                      >
                         {isProcessing ? <Loader2 className="animate-spin" size={16}/> : (modalConfig.type === 'transfer' ? <Send size={16} /> : <Download size={16} />)}
                         {modalConfig.type === 'transfer' ? 'تأكيد التحويل' : 'تأكيد الاستلام'}

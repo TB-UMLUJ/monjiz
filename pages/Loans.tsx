@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Loan, LoanType, Bill, EntityLogo, Transaction, TransactionType, UserSettings, BillScheduleItem } from '../types';
 import { calculateLoanSchedule, calculateDurationInMonths } from '../services/loanCalculator';
@@ -733,7 +731,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                    }
               }
 
-              notify('تم التراجع عن السداد وتسجيل عملية استرداد', 'success');
+              notify('تم التراجع عن السداد وتسجيل العملية استرداد', 'success');
 
           } else {
               // --- Handle Payment (Single or Bulk) ---
@@ -1165,7 +1163,16 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                     const paid = loan.schedule.filter(s => s.isPaid).reduce((a,c)=>a+c.paymentAmount,0);
                     const total = loan.schedule.reduce((a,c)=>a+c.paymentAmount,0);
                     const remaining = total - paid;
-                    const prog = total > 0 ? (paid/total)*100 : 0;
+                    
+                    let prog = total > 0 ? (paid/total)*100 : 0;
+                    
+                    // Handle Bridge Loans (Paid amount is 0, but installments are marked paid)
+                    const paidCount = loan.schedule.filter(s => s.isPaid).length;
+                    const totalCount = loan.schedule.length;
+                    if (paid === 0 && paidCount > 0 && totalCount > 0) {
+                        prog = (paidCount / totalCount) * 100;
+                    }
+
                     const nextPayment = loan.schedule.find(s => !s.isPaid);
                     const remainingMonths = loan.schedule.filter(s => !s.isPaid).length;
 
@@ -1465,13 +1472,15 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                     <div className="p-4 bg-slate-50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800">
                         <div className="grid grid-cols-2 gap-4 text-sm">
                             <div className="bg-white dark:bg-slate-800 p-3 rounded-xl border dark:border-slate-700">
-                                <span className="text-slate-400 text-xs block mb-1">إجمالي المبلغ</span>
-                                <span className="font-bold text-lg dark:text-white">{selectedLoan.totalAmount.toLocaleString('en-US')}</span>
+                                <span className="text-slate-400 text-xs block mb-1">إجمالي المبلغ (شامل الأرباح)</span>
+                                <span className="font-bold text-lg dark:text-white">
+                                    {selectedLoan.schedule.reduce((a, c) => a + c.paymentAmount, 0).toLocaleString('en-US')}
+                                </span>
                             </div>
                             <div className="bg-white dark:bg-slate-800 p-3 rounded-xl border dark:border-slate-700">
                                 <span className="text-slate-400 text-xs block mb-1">المتبقي</span>
                                 <span className="font-bold text-lg text-rose-600 dark:text-rose-400">
-                                    {selectedLoan.schedule.filter(s => !s.isPaid).reduce((a,c)=>a+c.remainingBalance,0).toLocaleString('en-US')}
+                                    {selectedLoan.schedule.filter(s => !s.isPaid).reduce((a,c)=>a+c.paymentAmount,0).toLocaleString('en-US')}
                                 </span>
                             </div>
                         </div>

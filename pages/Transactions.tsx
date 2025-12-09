@@ -1,5 +1,3 @@
-
-
 import React, { useState } from 'react';
 import { Transaction, TransactionType, UserSettings } from '../types';
 import { storageService } from '../services/storage';
@@ -392,7 +390,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
                 </button>
                <button 
                   onClick={handleOpenAddModal}
-                  className="bg-emerald-600 text-white px-5 py-3 rounded-xl font-bold text-sm hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 shadow-lg hover:shadow-xl shadow-emerald-500/20"
+                  className="bg-eerie-black text-white px-5 py-3 rounded-xl font-bold text-sm hover:bg-black transition-colors flex items-center justify-center gap-2 shadow-lg hover:shadow-xl shadow-slate-900/10"
                 >
                   <Plus size={18} />
                   <span>إضافة عملية</span>
@@ -407,15 +405,10 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
               <div 
                 key={tx.id}
                 onClick={() => setSelectedTx(tx)}
-                className="p-4 md:flex-row md:justify-between items-center gap-3 transition-colors animate-slide-up relative cursor-pointer group border-b border-slate-100 dark:border-slate-800 md:border-0 rounded-none hover:bg-slate-50 dark:hover:bg-slate-800/50 flex flex-row-reverse"
+                className="p-4 flex items-center justify-between gap-3 transition-colors animate-slide-up relative cursor-pointer group border-b border-slate-100 dark:border-slate-800 md:border-0 rounded-none hover:bg-slate-50 dark:hover:bg-slate-800/50"
                 style={{ animationDelay: `${index * 0.05}s` }}
               >
-                 <div className="text-left shrink-0">
-                    <span className={`font-bold text-base md:text-lg block ${tx.type === TransactionType.INCOME ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-800 dark:text-slate-200'}`}>
-                    {tx.type === TransactionType.INCOME ? '+' : '-'}{tx.amount.toLocaleString('en-US')}
-                    </span>
-                    {(tx.fee || 0) > 0 && <span className="text-[10px] text-rose-500 block">رسوم: {Number(tx.fee).toFixed(2)}</span>}
-                </div>
+                {/* DETAILS FIRST (Right side in RTL) */}
                 <div className="flex items-center gap-3 md:gap-4 flex-1 min-w-0">
                     <div className={`p-3 rounded-full shrink-0 ${tx.type === TransactionType.INCOME ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400' : 'bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400'}`}>
                       {tx.type === TransactionType.INCOME ? <ArrowUpRight size={20} /> : <ArrowDownLeft size={20} />}
@@ -438,6 +431,14 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
                         </div>
                       )}
                     </div>
+                </div>
+
+                 {/* AMOUNT SECOND (Left side in RTL) */}
+                 <div className="text-left shrink-0" dir="ltr">
+                    <span className={`font-bold text-base md:text-lg block ${tx.type === TransactionType.INCOME ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-800 dark:text-slate-200'}`}>
+                    {tx.type === TransactionType.INCOME ? '+' : '-'}{tx.amount.toLocaleString('en-US')}
+                    </span>
+                    {(tx.fee || 0) > 0 && <span className="text-[10px] text-rose-500 block text-right">رسوم: {Number(tx.fee).toFixed(2)}</span>}
                 </div>
               </div>
             ))}
@@ -462,7 +463,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
                 onClick={(e) => e.stopPropagation()}
              >
                 <div className="flex justify-between items-center mb-6 border-b border-slate-100 dark:border-slate-800 pb-4">
-                    <h3 className="font-bold text-xl text-slate-800 dark:text-white">
+                    <h3 className="font-bold text-xl text-eerie-black dark:text-white">
                         {editingId ? 'تعديل العملية' : 'تسجيل عملية يدوياً'}
                     </h3>
                     <button onClick={() => setShowAddModal(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-500 transition-colors">
@@ -628,7 +629,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
                                  <Trash2 size={20}/>
                              </button>
                          )}
-                        <button type="submit" disabled={isProcessing} className={`flex-1 text-white dark:text-slate-900 py-3 rounded-xl font-bold transition-all transform active:scale-95 shadow-lg flex items-center justify-center gap-2 ${editingId ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-slate-900 dark:bg-[#bef264] hover:bg-slate-800 dark:hover:bg-[#a3e635]'}`}>
+                        <button type="submit" disabled={isProcessing} className={`flex-1 text-white dark:text-slate-900 py-3 rounded-xl font-bold transition-all transform active:scale-95 shadow-lg flex items-center justify-center gap-2 ${editingId ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-eerie-black dark:bg-[#bef264] hover:bg-black dark:hover:bg-[#a3e635]'}`}>
                         {isProcessing ? <Loader2 className="animate-spin" /> : (editingId ? <><Save size={18}/> تحديث العملية</> : <><Plus size={18}/> حفظ العملية</>)}
                         </button>
                     </div>
@@ -731,7 +732,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
                                         setSelectedTx(null);
                                     }
                                 }}
-                                className="flex-[2] py-3 bg-slate-900 text-white dark:bg-slate-200 dark:text-slate-900 rounded-xl text-sm font-bold hover:bg-slate-700 transition-colors flex items-center justify-center gap-2">
+                                className="flex-[2] py-3 bg-eerie-black text-white dark:bg-slate-200 dark:text-slate-900 rounded-xl text-sm font-bold hover:bg-black transition-colors flex items-center justify-center gap-2">
                                 <Edit3 size={16}/> تعديل
                             </button>
                         </div>

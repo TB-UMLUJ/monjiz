@@ -75,6 +75,66 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings }) => {
       setReportData({ transactions: txs, loans: lns, bills: bls });
   };
 
+  const addSmartPageBreaks = async () => {
+      const report = reportRef.current;
+      if (!report) return;
+
+      // Reset: Remove previous spacers
+      report.querySelectorAll('.print-spacer').forEach(el => el.remove());
+      // Force Layout Reflow
+      await new Promise(r => setTimeout(r, 100));
+
+      const PAGE_HEIGHT = 1123; // A4 Height in PX at standard web DPI (approx 96dpi for 794px width)
+      const reportTop = report.getBoundingClientRect().top;
+
+      // Select all atomic elements that shouldn't be split
+      // We target: Section headers, Summary Cards, Loan Cards, and Table Rows
+      const targets = Array.from(report.querySelectorAll('.report-section, .report-summary-card, .report-loan-card, tr.report-bill-row, .report-section h2')) as HTMLElement[];
+      
+      // Sort by vertical position to process in order
+      targets.sort((a, b) => {
+          const rectA = a.getBoundingClientRect();
+          const rectB = b.getBoundingClientRect();
+          return rectA.top - rectB.top;
+      });
+
+      for (const el of targets) {
+          const rect = el.getBoundingClientRect();
+          const top = rect.top - reportTop;
+          const height = rect.height;
+
+          // If the element itself is taller than a page, we can't do much (it will break inside).
+          // We only fix elements that FIT on a page but happen to cross the line.
+          if (height >= PAGE_HEIGHT) continue;
+
+          const startPage = Math.floor(top / PAGE_HEIGHT);
+          const endPage = Math.floor((top + height) / PAGE_HEIGHT);
+
+          if (startPage !== endPage) {
+              // Element crosses page boundary! Push it to next page.
+              const nextPageY = (startPage + 1) * PAGE_HEIGHT;
+              // Add a spacer. We calculate needed height to reach next page + small buffer
+              const spacerHeight = nextPageY - top + 20;
+
+              if (el.tagName === 'TR') {
+                  // For tables, insert a spacer row
+                  const spacer = document.createElement('tr');
+                  spacer.className = 'print-spacer';
+                  spacer.style.height = `${spacerHeight}px`;
+                  spacer.innerHTML = '<td colspan="100" style="border:none; padding:0;"></td>';
+                  el.parentElement?.insertBefore(spacer, el);
+              } else {
+                  // For blocks
+                  const spacer = document.createElement('div');
+                  spacer.className = 'print-spacer';
+                  spacer.style.height = `${spacerHeight}px`;
+                  spacer.style.width = '100%';
+                  el.parentElement?.insertBefore(spacer, el);
+              }
+          }
+      }
+  };
+
   const handleGenerateReport = async () => {
       setIsGeneratingReport(true);
       
@@ -82,11 +142,16 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings }) => {
           // 1. Ensure data is loaded
           if (!reportData) await prepareReportData();
 
-          // 2. Wait a tick for DOM to render the hidden report
+          // 2. Wait for DOM to render the hidden report
           await new Promise(resolve => setTimeout(resolve, 500));
           
           if (reportRef.current) {
-              // 3. Capture Canvas
+              // 3. Apply Smart Page Breaks logic
+              await addSmartPageBreaks();
+              // Wait for spacer reflow
+              await new Promise(resolve => setTimeout(resolve, 300));
+
+              // 4. Capture Canvas
               const canvas = await html2canvas(reportRef.current, {
                   scale: 2, // High resolution
                   useCORS: true,
@@ -94,7 +159,7 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings }) => {
                   backgroundColor: '#ffffff'
               });
 
-              // 4. Create PDF
+              // 5. Create PDF
               const imgData = canvas.toDataURL('image/png');
               // jsPDF default export usage
               const pdf = new jsPDF({
@@ -469,7 +534,7 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings }) => {
                                      list={`banks-${idx}`}
                                      value={card.bankName} 
                                      onChange={e => updateCard(card.id, 'bankName', e.target.value)}
-                                     className="w-full p-2 rounded-lg border border-slate-200 dark:border-slate-600 text-sm outline-none dark:bg-slate-800 dark:text-white"
+                                     className="w-full p-2 rounded-lg border border-slate-200 dark:border-slate-600 text-sm outline-none bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                                      placeholder="مصرف الراجحي..."
                                  />
                                  <datalist id={`banks-${idx}`}>
@@ -482,7 +547,7 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings }) => {
                                      type="text" maxLength={4}
                                      value={card.cardNumber} 
                                      onChange={e => updateCard(card.id, 'cardNumber', e.target.value)}
-                                     className="w-full p-2 rounded-lg border border-slate-200 dark:border-slate-600 text-sm outline-none font-mono dark:bg-slate-800 dark:text-white"
+                                     className="w-full p-2 rounded-lg border border-slate-200 dark:border-slate-600 text-sm outline-none font-mono bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                                      placeholder="8899"
                                  />
                              </div>
@@ -491,7 +556,7 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings }) => {
                                  <select 
                                      value={card.cardType} 
                                      onChange={e => updateCard(card.id, 'cardType', e.target.value)}
-                                     className="w-full p-2 rounded-lg border border-slate-200 dark:border-slate-600 text-sm outline-none dark:bg-slate-800 dark:text-white"
+                                     className="w-full p-2 rounded-lg border border-slate-200 dark:border-slate-600 text-sm outline-none bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                                  >
                                      {CARD_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                                  </select>
@@ -502,7 +567,7 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings }) => {
                                      type="number" 
                                      value={card.balance} 
                                      onChange={e => updateCard(card.id, 'balance', Number(e.target.value))}
-                                     className="w-full p-2 rounded-lg border border-slate-200 dark:border-slate-600 text-sm outline-none font-bold text-emerald-600 dark:bg-slate-800"
+                                     className="w-full p-2 rounded-lg border border-slate-200 dark:border-slate-600 text-sm outline-none font-bold text-emerald-600 bg-white dark:bg-slate-800"
                                      placeholder="0.00"
                                  />
                              </div>
@@ -531,7 +596,7 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings }) => {
                      <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3">
                          <input 
                             type="text" 
-                            className="w-full p-2 rounded-lg border border-slate-200 dark:border-slate-600 text-sm outline-none dark:bg-slate-800 dark:text-white"
+                            className="w-full p-2 rounded-lg border border-slate-200 dark:border-slate-600 text-sm outline-none bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                             placeholder="اسم البنك أو الجهة (مثال: STC Pay)"
                             value={newLogoName}
                             onChange={e => setNewLogoName(e.target.value)}
@@ -656,13 +721,25 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings }) => {
                   className="w-[794px] min-h-[1123px] bg-white text-slate-900 p-12 font-tajawal relative flex flex-col gap-8"
                   dir="rtl"
               >
+                  {/* Style for PDF page breaks */}
+                  <style>{`
+                      .report-section, .report-loan-card, .report-bill-row {
+                          page-break-inside: avoid;
+                      }
+                      .print-spacer {
+                          display: block;
+                          background: transparent;
+                          pointer-events: none;
+                      }
+                  `}</style>
+
                   {/* Watermark */}
                   <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none">
                       <img src="https://f.top4top.io/p_3619agw9o1.png" className="w-[500px]" alt="watermark"/>
                   </div>
 
                   {/* Header */}
-                  <div className="flex justify-between items-center border-b-2 border-slate-100 pb-6">
+                  <div className="flex justify-between items-center border-b-2 border-slate-100 pb-6 report-section">
                       <div>
                           <h1 className="text-3xl font-extrabold text-slate-900 mb-2">تقرير مالي شامل</h1>
                           <p className="text-slate-500 text-sm">تاريخ التقرير: {new Date().toLocaleDateString('ar-SA')}</p>
@@ -675,14 +752,14 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings }) => {
 
                   {/* Section 1: Snapshot */}
                   {reportConfig.includeSnapshot && (
-                      <div className="space-y-4">
+                      <div className="space-y-4 report-section">
                           <div className="flex items-center gap-2 mb-2">
                               <div className="w-1 h-6 bg-emerald-500 rounded-full"></div>
                               <h2 className="text-xl font-bold text-slate-800">ملخص الحالة المالية</h2>
                           </div>
                           
                           {/* Financial Health Card */}
-                          <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 flex justify-between items-center">
+                          <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 flex justify-between items-center report-summary-card">
                               <div>
                                   <p className="text-sm text-slate-500 mb-1">الرصيد المتاح (الكاش)</p>
                                   <h3 className="text-3xl font-bold text-slate-900">{settings.cards.reduce((acc, c) => acc + (c.balance || 0), 0).toLocaleString('en-US')} <span className="text-sm font-normal">SAR</span></h3>
@@ -703,7 +780,7 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings }) => {
 
                   {/* Section 2: Loans */}
                   {reportConfig.includeLoans && (
-                      <div className="space-y-4">
+                      <div className="space-y-4 report-section">
                            <div className="flex items-center gap-2 mb-2">
                               <div className="w-1 h-6 bg-blue-500 rounded-full"></div>
                               <h2 className="text-xl font-bold text-slate-800">القروض والديون النشطة</h2>
@@ -712,9 +789,18 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings }) => {
                               {reportData.loans.filter(l => l.status === 'active').map(loan => {
                                   const paid = loan.schedule.filter(s=>s.isPaid).reduce((a,c)=>a+c.paymentAmount,0);
                                   const total = loan.totalAmount; // Approximate
-                                  const progress = (paid/total)*100;
+                                  
+                                  let progress = (total > 0) ? (paid/total)*100 : 0;
+                                  
+                                  // Handle Bridge Loans in Report
+                                  const paidCount = loan.schedule.filter(s => s.isPaid).length;
+                                  const totalCount = loan.schedule.length;
+                                  if (paid === 0 && paidCount > 0 && totalCount > 0) {
+                                      progress = (paidCount / totalCount) * 100;
+                                  }
+
                                   return (
-                                      <div key={loan.id} className="border border-slate-200 rounded-xl p-4 relative overflow-hidden">
+                                      <div key={loan.id} className="border border-slate-200 rounded-xl p-4 relative overflow-hidden report-loan-card">
                                           <div className="flex justify-between mb-2 relative z-10">
                                               <span className="font-bold text-slate-800">{loan.name}</span>
                                               <span className="text-xs bg-slate-100 px-2 py-1 rounded text-slate-600">{Math.round(progress)}% مدفوع</span>
@@ -738,7 +824,7 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings }) => {
 
                   {/* Section 3: Bills Calendar View */}
                   {reportConfig.includeBills && (
-                      <div className="space-y-4">
+                      <div className="space-y-4 report-section">
                            <div className="flex items-center gap-2 mb-2">
                               <div className="w-1 h-6 bg-purple-500 rounded-full"></div>
                               <h2 className="text-xl font-bold text-slate-800">الالتزامات الشهرية (الفواتير)</h2>
@@ -746,7 +832,7 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings }) => {
                           <div className="border border-slate-200 rounded-xl overflow-hidden">
                               <table className="w-full text-sm text-right">
                                   <thead className="bg-slate-100 text-slate-600">
-                                      <tr>
+                                      <tr className="report-bill-row">
                                           <th className="p-3">المزود</th>
                                           <th className="p-3">النوع</th>
                                           <th className="p-3">المبلغ</th>
@@ -755,7 +841,7 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings }) => {
                                   </thead>
                                   <tbody className="divide-y divide-slate-100">
                                       {reportData.bills.filter(b => b.status === 'active').map(bill => (
-                                          <tr key={bill.id}>
+                                          <tr key={bill.id} className="report-bill-row">
                                               <td className="p-3 font-bold text-slate-800">{bill.provider}</td>
                                               <td className="p-3 text-slate-500">{bill.type}</td>
                                               <td className="p-3 font-bold text-slate-900">{bill.amount.toLocaleString()}</td>
@@ -763,7 +849,7 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings }) => {
                                           </tr>
                                       ))}
                                       {reportData.bills.filter(b => b.status === 'active').length === 0 && (
-                                          <tr><td colSpan={4} className="p-4 text-center text-slate-400">لا توجد فواتير نشطة.</td></tr>
+                                          <tr className="report-bill-row"><td colSpan={4} className="p-4 text-center text-slate-400">لا توجد فواتير نشطة.</td></tr>
                                       )}
                                   </tbody>
                               </table>
@@ -773,7 +859,7 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings }) => {
 
                   {/* Section 4: AI Insights (Mocked Visual for now or dynamic) */}
                   {reportConfig.includeAiAnalysis && (
-                      <div className="space-y-4">
+                      <div className="space-y-4 report-section">
                            <div className="flex items-center gap-2 mb-2">
                               <div className="w-1 h-6 bg-indigo-500 rounded-full"></div>
                               <h2 className="text-xl font-bold text-slate-800">توصيات المستشار الذكي</h2>
@@ -790,7 +876,7 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings }) => {
                   )}
 
                   {/* Footer */}
-                  <div className="mt-auto pt-6 border-t border-slate-200 flex justify-between items-end text-xs text-slate-400">
+                  <div className="mt-auto pt-6 border-t border-slate-200 flex justify-between items-end text-xs text-slate-400 report-section">
                       <p>تم إنشاء هذا التقرير آلياً بواسطة منصة منجز.</p>
                       <p>Monjez Financial App © 2025</p>
                   </div>
