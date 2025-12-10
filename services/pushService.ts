@@ -1,6 +1,6 @@
-
 import { supabase, DEFAULT_USER_ID } from './supabaseClient';
 
+// Public Key generated via web-push
 const VAPID_PUBLIC_KEY = 'BM3q7_7Voea6BFYVbO26dS4ozYgvzCMIzmS0m2G5bOc0f2b6uaWsaRZRvtVnSwTHdE2QM1fzlfx7z1rg8T8Xtkk'; 
 
 function urlBase64ToUint8Array(base64String: string) {
@@ -64,7 +64,7 @@ export const pushService = {
         console.log('Found existing subscription.');
     }
 
-    // 4. Save to Supabase
+    // 4. Save to Supabase (Manual Check instead of Upsert to avoid Constraint Error)
     console.log('Saving subscription to database...');
     const subJson = subscription.toJSON();
     
@@ -73,19 +73,44 @@ export const pushService = {
         throw new Error('Invalid subscription endpoint generated');
     }
 
-    const { error } = await supabase
-      .from('push_subscriptions')
-      .upsert({
-        user_id: DEFAULT_USER_ID,
-        endpoint: subJson.endpoint,
-        keys: subJson.keys,
-        icon_url: iconUrl,
-        created_at: new Date().toISOString()
-      }, { onConflict: 'endpoint' }); // Prevent duplicate rows for same endpoint
+    // Step A: Check if exists
+    const { data: existing } = await supabase
+        .from('push_subscriptions')
+        .select('id')
+        .eq('endpoint', subJson.endpoint)
+        .maybeSingle(); // Use maybeSingle to avoid error if not found
+
+    let error;
+    
+    if (existing) {
+        // Step B: Update existing
+        const { error: updateError } = await supabase
+            .from('push_subscriptions')
+            .update({
+                user_id: DEFAULT_USER_ID,
+                keys: subJson.keys,
+                icon_url: iconUrl,
+                // Don't update created_at
+            })
+            .eq('id', existing.id);
+        error = updateError;
+    } else {
+        // Step C: Insert new
+        const { error: insertError } = await supabase
+            .from('push_subscriptions')
+            .insert({
+                user_id: DEFAULT_USER_ID,
+                endpoint: subJson.endpoint,
+                keys: subJson.keys,
+                icon_url: iconUrl,
+                created_at: new Date().toISOString()
+            });
+        error = insertError;
+    }
 
     if (error) {
       console.error("Supabase Save Error:", error);
-      throw error;
+      throw new Error(`Database Error: ${error.message}`);
     }
 
     console.log('Subscription saved successfully.');
@@ -94,7 +119,7 @@ export const pushService = {
     try {
         await registration.showNotification("تم تفعيل الإشعارات بنجاح", {
             body: "ستصلك تنبيهات منجز هنا.",
-            icon: iconUrl || "/icon.png",
+            icon: iconUrl || "https://cdn-icons-png.flaticon.com/512/2382/2382461.png",
             dir: 'rtl'
         });
     } catch (e) {
