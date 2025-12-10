@@ -1,23 +1,13 @@
-
 // Service Worker for Monjez PWA
 
 const CACHE_NAME = 'monjez-cache-v1';
-const ASSETS_TO_CACHE = [
-  '/',
-  '/index.html',
-  '/index.css'
-];
 
-// Install Event - Cache assets and activate immediately
+// Install Event - Activate immediately
 self.addEventListener('install', (event) => {
   // Force the waiting service worker to become the active service worker.
   self.skipWaiting();
-  
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
-    })
-  );
+  // Note: We are not precaching specific files here to avoid "Request failed" errors
+  // if files like index.css are missing or have hashed names in production.
 });
 
 // Activate Event - Clean up old caches and claim clients
@@ -39,17 +29,25 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch Event - Serve from cache or network
+// Fetch Event - Network First, then Cache
 self.addEventListener('fetch', (event) => {
-  // Optional: Add logic to skip cache for API requests or specific paths if needed
-  if (event.request.url.includes('/api/') || event.request.url.includes('supabase')) {
-     return; // Network only for APIs
-  }
+  // Only handle GET requests
+  if (event.request.method !== 'GET') return;
+  // Skip API requests
+  if (event.request.url.includes('/api/') || event.request.url.includes('supabase')) return;
 
   event.respondWith(
-    caches.match(event.request).then((response) => {
-      return response || fetch(event.request);
-    })
+    fetch(event.request)
+      .then((response) => {
+        // Return response immediately and optionally cache it for later
+        // const responseClone = response.clone();
+        // caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
+        return response;
+      })
+      .catch(() => {
+        // If network fails, try cache
+        return caches.match(event.request);
+      })
   );
 });
 
