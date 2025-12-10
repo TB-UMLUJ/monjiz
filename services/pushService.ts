@@ -1,6 +1,6 @@
+
 import { supabase, DEFAULT_USER_ID } from './supabaseClient';
 
-// تم تحديث المفتاح العام (Public Key) بناءً على ما تم توليده
 const VAPID_PUBLIC_KEY = 'BM3q7_7Voea6BFYVbO26dS4ozYgvzCMIzmS0m2G5bOc0f2b6uaWsaRZRvtVnSwTHdE2QM1fzlfx7z1rg8T8Xtkk'; 
 
 function urlBase64ToUint8Array(base64String: string) {
@@ -24,49 +24,82 @@ export const pushService = {
       throw new Error('Push messaging is not supported');
     }
 
+    console.log('Requesting notification permission...');
     // 1. Check/Request Permission
     const permission = await Notification.requestPermission();
     if (permission !== 'granted') {
       throw new Error('Notification permission denied');
     }
 
-    // 2. Subscribe
-    const registration = await navigator.serviceWorker.ready;
+    // 2. Ensure Service Worker is Ready (with timeout fallback)
+    console.log('Waiting for Service Worker ready...');
     
-    // Check if already subscribed
+    // Explicitly register if not present (just in case index.html failed)
+    if (!navigator.serviceWorker.controller) {
+        await navigator.serviceWorker.register('/service-worker.js');
+    }
+
+    // Use a race condition to prevent hanging indefinitely
+    const registration = await Promise.race([
+        navigator.serviceWorker.ready,
+        new Promise<ServiceWorkerRegistration>((_, reject) => 
+            setTimeout(() => reject(new Error('Service Worker took too long to be ready')), 5000)
+        )
+    ]);
+    
+    console.log('Service Worker is ready:', registration);
+
+    // 3. Subscribe
     let subscription = await registration.pushManager.getSubscription();
 
     if (!subscription) {
+        console.log('No existing subscription, subscribing now...');
         const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
 
         subscription = await registration.pushManager.subscribe({
             userVisibleOnly: true,
             applicationServerKey: applicationServerKey
         });
+    } else {
+        console.log('Found existing subscription.');
     }
 
-    // 3. Save to Supabase
+    // 4. Save to Supabase
+    console.log('Saving subscription to database...');
     const subJson = subscription.toJSON();
     
+    // Check if endpoint is valid
+    if (!subJson.endpoint) {
+        throw new Error('Invalid subscription endpoint generated');
+    }
+
     const { error } = await supabase
       .from('push_subscriptions')
-      .insert({
+      .upsert({
         user_id: DEFAULT_USER_ID,
         endpoint: subJson.endpoint,
         keys: subJson.keys,
-        icon_url: iconUrl
-      });
+        icon_url: iconUrl,
+        created_at: new Date().toISOString()
+      }, { onConflict: 'endpoint' }); // Prevent duplicate rows for same endpoint
 
     if (error) {
       console.error("Supabase Save Error:", error);
       throw error;
     }
 
-    // 4. Local Test Notification
-    new Notification("تم تفعيل الإشعارات بنجاح", {
-        body: "ستصلك تنبيهات منجز هنا.",
-        icon: iconUrl || "/icon.png"
-    });
+    console.log('Subscription saved successfully.');
+
+    // 5. Local Test Notification
+    try {
+        await registration.showNotification("تم تفعيل الإشعارات بنجاح", {
+            body: "ستصلك تنبيهات منجز هنا.",
+            icon: iconUrl || "/icon.png",
+            dir: 'rtl'
+        });
+    } catch (e) {
+        console.warn('Could not show local notification:', e);
+    }
 
     return true;
   }

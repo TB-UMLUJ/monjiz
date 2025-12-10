@@ -1,3 +1,4 @@
+
 // Service Worker for Monjez PWA
 
 const CACHE_NAME = 'monjez-cache-v1';
@@ -7,8 +8,11 @@ const ASSETS_TO_CACHE = [
   '/index.css'
 ];
 
-// Install Event - Cache assets
+// Install Event - Cache assets and activate immediately
 self.addEventListener('install', (event) => {
+  // Force the waiting service worker to become the active service worker.
+  self.skipWaiting();
+  
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(ASSETS_TO_CACHE);
@@ -16,23 +20,32 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// Activate Event - Clean up old caches
+// Activate Event - Clean up old caches and claim clients
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
-            return caches.delete(cacheName);
-          }
-        })
-      );
-    })
+    Promise.all([
+      // Enable the service worker to control all open clients immediately
+      self.clients.claim(),
+      caches.keys().then((cacheNames) => {
+        return Promise.all(
+          cacheNames.map((cacheName) => {
+            if (cacheName !== CACHE_NAME) {
+              return caches.delete(cacheName);
+            }
+          })
+        );
+      })
+    ])
   );
 });
 
 // Fetch Event - Serve from cache or network
 self.addEventListener('fetch', (event) => {
+  // Optional: Add logic to skip cache for API requests or specific paths if needed
+  if (event.request.url.includes('/api/') || event.request.url.includes('supabase')) {
+     return; // Network only for APIs
+  }
+
   event.respondWith(
     caches.match(event.request).then((response) => {
       return response || fetch(event.request);
@@ -58,7 +71,8 @@ self.addEventListener('push', (event) => {
     icon: data.icon || 'https://cdn-icons-png.flaticon.com/512/2382/2382461.png',
     badge: 'https://cdn-icons-png.flaticon.com/512/2382/2382461.png',
     dir: 'rtl',
-    lang: 'ar'
+    lang: 'ar',
+    data: { url: '/' } // Store URL to open on click
   };
 
   event.waitUntil(
@@ -71,11 +85,13 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   event.waitUntil(
     clients.matchAll({ type: 'window' }).then((clientList) => {
+      // Focus existing window if open
       for (const client of clientList) {
         if (client.url === '/' && 'focus' in client) {
           return client.focus();
         }
       }
+      // Otherwise open new window
       if (clients.openWindow) {
         return clients.openWindow('/');
       }

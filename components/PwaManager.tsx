@@ -1,5 +1,6 @@
+
 import React, { useRef, useState } from 'react';
-import { Camera, Bell, X, Video, ShieldCheck, Send } from 'lucide-react';
+import { Camera, Bell, X, Video, ShieldCheck, Send, Loader2 } from 'lucide-react';
 import { pushService } from '../services/pushService';
 import { useNotification } from '../contexts/NotificationContext';
 
@@ -34,13 +35,26 @@ const PwaManager: React.FC = () => {
 
   // --- Push Notification Logic ---
   const handleSubscribe = async () => {
+    if (isSubscribing) return;
     setIsSubscribing(true);
     try {
+      // Check if browser supports it first
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+          notify("متصفحك لا يدعم الإشعارات", "warning");
+          setIsSubscribing(false);
+          return;
+      }
+
       await pushService.subscribeUser('https://cdn-icons-png.flaticon.com/512/2382/2382461.png');
       notify("تم الاشتراك في الإشعارات بنجاح", "success");
     } catch (err: any) {
-      console.error(err);
-      notify(err.message || "فشل الاشتراك في الإشعارات", "error");
+      console.error("Subscription Error:", err);
+      // More user friendly errors
+      let msg = "فشل الاشتراك في الإشعارات";
+      if (err.message?.includes('permission denied')) msg = "تم رفض إذن الإشعارات. يرجى تفعيلها من إعدادات المتصفح.";
+      if (err.message?.includes('took too long')) msg = "استغرق تفعيل الخدمة وقتاً طويلاً. يرجى تحديث الصفحة والمحاولة.";
+      
+      notify(msg, "error");
     } finally {
       setIsSubscribing(false);
     }
@@ -95,8 +109,9 @@ const PwaManager: React.FC = () => {
               <button 
                 onClick={handleSubscribe}
                 disabled={isSubscribing}
-                className="flex-1 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 transition-colors disabled:opacity-70"
+                className="flex-1 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 transition-colors disabled:opacity-70 flex items-center justify-center gap-2"
               >
+                {isSubscribing && <Loader2 className="animate-spin" size={16}/>}
                 {isSubscribing ? 'جاري التفعيل...' : 'تفعيل الإشعارات'}
               </button>
               <button 
