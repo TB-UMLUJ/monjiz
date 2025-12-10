@@ -215,3 +215,6 @@ ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS card_last4 VARCHAR(4);
 ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS country VARCHAR(100);
 ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50);
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS app_logo TEXT;
+
+-- IMPORTANT: Run this to prevent duplicate subscriptions
+ALTER TABLE public.push_subscriptions ADD CONSTRAINT push_subscriptions_endpoint_key UNIQUE (endpoint);

@@ -1,3 +1,4 @@
+
 import { supabase, DEFAULT_USER_ID } from './supabaseClient';
 
 // Public Key generated via web-push
@@ -73,17 +74,26 @@ export const pushService = {
         throw new Error('Invalid subscription endpoint generated');
     }
 
+    // FIX: Do not use upsert because "endpoint" column might not have a UNIQUE constraint yet.
+    // Instead, SELECT then INSERT/UPDATE.
+
     // Step A: Check if exists
-    const { data: existing } = await supabase
+    const { data: existing, error: fetchError } = await supabase
         .from('push_subscriptions')
         .select('id')
         .eq('endpoint', subJson.endpoint)
-        .maybeSingle(); // Use maybeSingle to avoid error if not found
+        .maybeSingle();
+
+    if (fetchError) {
+        console.error("Error checking subscription:", fetchError);
+        // Continue to try insert if fetch failed, or throw? better to throw to be safe
+    }
 
     let error;
     
     if (existing) {
         // Step B: Update existing
+        console.log('Updating existing subscription...');
         const { error: updateError } = await supabase
             .from('push_subscriptions')
             .update({
@@ -96,6 +106,7 @@ export const pushService = {
         error = updateError;
     } else {
         // Step C: Insert new
+        console.log('Inserting new subscription...');
         const { error: insertError } = await supabase
             .from('push_subscriptions')
             .insert({
