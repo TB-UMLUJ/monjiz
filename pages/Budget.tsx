@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Transaction, UserSettings, FinancialGoal, Loan, Bill } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as ReTooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
@@ -142,10 +141,10 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
         .filter(t => new Date(t.date).getDate() === day && new Date(t.date).getMonth() === today.getMonth())
         .reduce((sum, t) => sum + t.amount, 0);
       
-      if (dailyTotal === 0) return 'bg-slate-50 dark:bg-slate-800';
-      if (dailyTotal < 100) return 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600';
-      if (dailyTotal < 300) return 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-600';
-      return 'bg-rose-100 dark:bg-rose-900/40 text-rose-600 font-bold';
+      if (dailyTotal === 0) return 'bg-white/50 dark:bg-white/5';
+      if (dailyTotal < 100) return 'bg-emerald-200 dark:bg-emerald-500/30 text-emerald-800 dark:text-emerald-100';
+      if (dailyTotal < 300) return 'bg-yellow-200 dark:bg-yellow-500/30 text-yellow-800 dark:text-yellow-100';
+      return 'bg-rose-300 dark:bg-rose-500/40 text-rose-900 dark:text-rose-100 font-bold';
   };
 
   // Challenges (Static for now)
@@ -207,23 +206,23 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
     <div className="space-y-8 pb-20 md:pb-10">
        
        {/* 1. Smart Forecasting Banner */}
-       <div className={`p-6 rounded-2xl border shadow-sm flex flex-col md:flex-row items-center justify-between gap-6 transition-colors ${isOverBudgetRisk ? 'bg-rose-50 border-rose-100 dark:bg-rose-900/10 dark:border-rose-900/30' : 'bg-emerald-50 border-emerald-100 dark:bg-emerald-900/10 dark:border-emerald-900/30'}`}>
+       <div className={`p-6 rounded-2xl border shadow-sm flex flex-col md:flex-row items-center justify-between gap-6 transition-colors ${isOverBudgetRisk ? 'bg-rose-50 border-rose-100 dark:bg-rose-900/20 dark:border-rose-800' : 'bg-emerald-50 border-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-800'}`}>
           <div className="flex items-center gap-4">
              <div className={`p-3 rounded-full ${isOverBudgetRisk ? 'bg-rose-100 text-rose-600 dark:bg-rose-900/50' : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/50'}`}>
                 {isOverBudgetRisk ? <AlertTriangle size={24}/> : <TrendingUp size={24}/>}
              </div>
              <div>
-                <h3 className={`font-bold text-lg ${isOverBudgetRisk ? 'text-rose-700 dark:text-rose-400' : 'text-emerald-700 dark:text-emerald-400'}`}>
+                <h3 className={`font-bold text-lg ${isOverBudgetRisk ? 'text-rose-700 dark:text-rose-300' : 'text-emerald-700 dark:text-emerald-300'}`}>
                     {isOverBudgetRisk ? 'تنبيه: خطر تجاوز الميزانية' : 'وضعك المالي ممتاز!'}
                 </h3>
-                <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
                     بناءً على صرفك الحالي ({dailyAverage.toFixed(0)} يومياً)، متوقع أن تصل إلى <span className="font-bold">{forecastedSpend.toLocaleString('en-US')}</span> بنهاية الشهر.
                     {isOverBudgetRisk ? ` (تتجاوز الحد بـ ${(forecastedSpend - settings.monthlyLimit).toLocaleString('en-US')})` : ` (أقل من الحد بـ ${(settings.monthlyLimit - forecastedSpend).toLocaleString('en-US')})`}
                 </p>
              </div>
           </div>
           <div className="text-center md:text-left min-w-[120px]">
-             <p className="text-xs text-slate-500 mb-1">الميزانية المتبقية</p>
+             <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">الميزانية المتبقية</p>
              <p className="text-2xl font-bold text-slate-800 dark:text-white">
                 {totalCardsBalance.toLocaleString('en-US')}
              </p>
@@ -232,11 +231,11 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
 
        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
            
-           {/* 2. 50/30/20 Rule Chart */}
-           <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
+           {/* 2. 50/30/20 Rule Chart - Cyan/Sky Tint */}
+           <div className="bg-sky-50 dark:bg-sky-950/20 p-6 rounded-2xl shadow-sm border border-sky-100 dark:border-sky-900">
                <div className="flex items-center gap-2 mb-6">
-                   <PieChartIcon size={20} className="text-indigo-500" />
-                   <h3 className="font-bold text-lg text-slate-800 dark:text-white">قاعدة 50/30/20</h3>
+                   <PieChartIcon size={20} className="text-sky-600 dark:text-sky-400" />
+                   <h3 className="font-bold text-lg text-sky-900 dark:text-sky-100">قاعدة 50/30/20</h3>
                </div>
                <div className="h-64">
                    <ResponsiveContainer width="100%" height="100%">
@@ -272,20 +271,20 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
                </div>
            </div>
 
-           {/* 3. Period Comparison */}
-           <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
+           {/* 3. Period Comparison - Indigo Tint */}
+           <div className="bg-indigo-50 dark:bg-indigo-950/20 p-6 rounded-2xl shadow-sm border border-indigo-100 dark:border-indigo-900">
                <div className="flex items-center gap-2 mb-6">
-                   <RefreshCcw size={20} className="text-blue-500" />
-                   <h3 className="font-bold text-lg text-slate-800 dark:text-white">مقارنة الفترات</h3>
+                   <RefreshCcw size={20} className="text-indigo-600 dark:text-indigo-400" />
+                   <h3 className="font-bold text-lg text-indigo-900 dark:text-indigo-100">مقارنة الفترات</h3>
                </div>
                <div className="h-64">
                    <ResponsiveContainer width="100%" height="100%">
                        <BarChart data={comparisonData}>
-                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" strokeOpacity={0.5} />
                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#64748b'}} />
                            <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b'}} />
                            <ReTooltip cursor={{fill: 'transparent'}} contentStyle={{borderRadius: '12px'}} />
-                           <Bar dataKey="amount" fill="#3b82f6" radius={[10, 10, 0, 0]} barSize={40} />
+                           <Bar dataKey="amount" fill="#6366f1" radius={[10, 10, 0, 0]} barSize={40} />
                        </BarChart>
                    </ResponsiveContainer>
                </div>
@@ -295,11 +294,11 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
            </div>
        </div>
 
-       {/* 4. Spending Calendar */}
-       <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
+       {/* 4. Spending Calendar - Emerald Tint */}
+       <div className="bg-emerald-50 dark:bg-emerald-950/20 p-6 rounded-2xl shadow-sm border border-emerald-100 dark:border-emerald-900">
            <div className="flex items-center gap-2 mb-6">
-               <Calendar size={20} className="text-emerald-500" />
-               <h3 className="font-bold text-lg text-slate-800 dark:text-white">تقويم الصرف (شهر {today.getMonth() + 1})</h3>
+               <Calendar size={20} className="text-emerald-600 dark:text-emerald-400" />
+               <h3 className="font-bold text-lg text-emerald-900 dark:text-emerald-100">تقويم الصرف (شهر {today.getMonth() + 1})</h3>
            </div>
            
            <div className="grid grid-cols-7 gap-2">
@@ -311,7 +310,7 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
                    return (
                        <div 
                            key={day} 
-                           className={`aspect-square rounded-lg flex items-center justify-center text-sm ${getDayIntensity(day)} transition-all hover:scale-105 cursor-default`}
+                           className={`aspect-square rounded-lg flex items-center justify-center text-sm ${getDayIntensity(day)} transition-all hover:scale-105 cursor-default shadow-sm`}
                            title={`يوم ${day}`}
                        >
                            {day}
@@ -319,25 +318,25 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
                    );
                })}
            </div>
-           <div className="flex gap-4 mt-4 justify-center text-xs text-slate-500">
-               <div className="flex items-center gap-1"><div className="w-3 h-3 bg-slate-100 rounded"></div> 0</div>
-               <div className="flex items-center gap-1"><div className="w-3 h-3 bg-emerald-100 rounded"></div> منخفض</div>
-               <div className="flex items-center gap-1"><div className="w-3 h-3 bg-yellow-100 rounded"></div> متوسط</div>
-               <div className="flex items-center gap-1"><div className="w-3 h-3 bg-rose-100 rounded"></div> مرتفع</div>
+           <div className="flex gap-4 mt-4 justify-center text-xs text-slate-500 dark:text-slate-400">
+               <div className="flex items-center gap-1"><div className="w-3 h-3 bg-white/50 border border-slate-200 rounded"></div> 0</div>
+               <div className="flex items-center gap-1"><div className="w-3 h-3 bg-emerald-200 rounded"></div> منخفض</div>
+               <div className="flex items-center gap-1"><div className="w-3 h-3 bg-yellow-200 rounded"></div> متوسط</div>
+               <div className="flex items-center gap-1"><div className="w-3 h-3 bg-rose-300 rounded"></div> مرتفع</div>
            </div>
        </div>
 
        {/* 5. Financial Goals & Challenges */}
        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
            
-           {/* Goals */}
-           <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
+           {/* Goals - Amber Tint */}
+           <div className="bg-amber-50 dark:bg-amber-950/20 p-6 rounded-2xl shadow-sm border border-amber-100 dark:border-amber-900">
                <div className="flex justify-between items-center mb-6">
                    <div className="flex items-center gap-2">
-                       <Target size={20} className="text-rose-500" />
-                       <h3 className="font-bold text-lg text-slate-800 dark:text-white">الأهداف المالية</h3>
+                       <Target size={20} className="text-amber-600 dark:text-amber-400" />
+                       <h3 className="font-bold text-lg text-amber-900 dark:text-amber-100">الأهداف المالية</h3>
                    </div>
-                   <button onClick={() => setShowGoalModal(true)} className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-full text-slate-600 dark:text-slate-300 transition-colors">
+                   <button onClick={() => setShowGoalModal(true)} className="p-2 bg-white/60 dark:bg-white/10 hover:bg-white dark:hover:bg-white/20 rounded-full text-amber-800 dark:text-amber-200 transition-colors">
                        <Plus size={18} />
                    </button>
                </div>
@@ -352,7 +351,7 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
                        {goals.map(goal => {
                            const percentage = Math.min((goal.currentAmount / goal.targetAmount) * 100, 100);
                            return (
-                               <div key={goal.id} className="border border-slate-100 dark:border-slate-800 p-4 rounded-xl hover:border-emerald-200 transition-colors group">
+                               <div key={goal.id} className="border border-amber-200/50 dark:border-amber-800/50 bg-white/50 dark:bg-black/20 p-4 rounded-xl hover:border-amber-300 transition-colors group">
                                    <div className="flex justify-between items-center mb-2">
                                        <h4 className="font-bold text-slate-800 dark:text-white">{goal.name}</h4>
                                        <div className="flex items-center gap-2">
@@ -360,12 +359,12 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
                                            <button onClick={() => handleDeleteGoal(goal.id)} className="text-slate-400 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={14}/></button>
                                        </div>
                                    </div>
-                                   <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden mb-2">
-                                       <div className="bg-emerald-500 h-full transition-all" style={{ width: `${percentage}%` }}></div>
+                                   <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden mb-2">
+                                       <div className="bg-amber-500 h-full transition-all" style={{ width: `${percentage}%` }}></div>
                                    </div>
                                    <div className="flex justify-between items-center text-xs">
                                        <span className="text-slate-500">{goal.currentAmount.toLocaleString('en-US')} / {goal.targetAmount.toLocaleString('en-US')}</span>
-                                       <button onClick={() => handleUpdateGoal(goal, 100)} className="text-emerald-600 font-bold hover:underline">+ 100 ريال</button>
+                                       <button onClick={() => handleUpdateGoal(goal, 100)} className="text-amber-600 font-bold hover:underline">+ 100 ريال</button>
                                    </div>
                                </div>
                            );
@@ -374,18 +373,18 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
                )}
            </div>
 
-           {/* Challenges */}
-           <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
+           {/* Challenges - Violet Tint */}
+           <div className="bg-violet-50 dark:bg-violet-950/20 p-6 rounded-2xl shadow-sm border border-violet-100 dark:border-violet-900">
                <div className="flex items-center gap-2 mb-6">
-                   <Trophy size={20} className="text-amber-500" />
-                   <h3 className="font-bold text-lg text-slate-800 dark:text-white">تحديات التوفير</h3>
+                   <Trophy size={20} className="text-violet-600 dark:text-violet-400" />
+                   <h3 className="font-bold text-lg text-violet-900 dark:text-violet-100">تحديات التوفير</h3>
                </div>
                <div className="space-y-4">
                    {challenges.map(challenge => {
                        const progress = (challenge.current / challenge.target) * 100;
                        return (
-                           <div key={challenge.id} className="flex items-center gap-4 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
-                               <div className="w-10 h-10 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center shadow-sm">
+                           <div key={challenge.id} className="flex items-center gap-4 p-3 bg-white/60 dark:bg-black/20 rounded-xl border border-violet-100/50 dark:border-violet-800/50">
+                               <div className="w-10 h-10 bg-violet-100 dark:bg-violet-900/50 rounded-full flex items-center justify-center shadow-sm">
                                    {challenge.icon}
                                </div>
                                <div className="flex-1">
@@ -394,7 +393,7 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
                                        <span className="text-xs text-slate-500">{challenge.current}/{challenge.target}</span>
                                    </div>
                                    <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
-                                       <div className="bg-amber-400 h-full" style={{ width: `${progress}%` }}></div>
+                                       <div className="bg-violet-500 h-full" style={{ width: `${progress}%` }}></div>
                                    </div>
                                </div>
                                {progress >= 100 && <CheckCircle2 size={18} className="text-emerald-500" />}
@@ -474,10 +473,10 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
             </div>
        </div>
 
-       {/* 7. Income History Table (Responsive Card View for Mobile) */}
-       <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
+       {/* 7. Income History Table - Slate Tint */}
+       <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800">
            <div className="flex items-center gap-2 mb-6">
-               <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg text-emerald-600 dark:text-emerald-400">
+               <div className="p-2 bg-white dark:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-400 shadow-sm">
                  <DollarSign size={20} />
                </div>
                <h3 className="font-bold text-lg text-slate-800 dark:text-white">سجل الدخل والرواتب</h3>
@@ -486,7 +485,7 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
            {/* Desktop Table View */}
            <div className="hidden md:block overflow-x-auto">
                <table className="w-full text-sm text-left rtl:text-right text-slate-500 dark:text-slate-400">
-                   <thead className="text-xs text-slate-700 dark:text-slate-300 uppercase bg-slate-50 dark:bg-slate-800">
+                   <thead className="text-xs text-slate-700 dark:text-slate-300 uppercase bg-white dark:bg-slate-800">
                        <tr>
                            <th className="px-6 py-4 rounded-r-xl">التاريخ</th>
                            <th className="px-6 py-4">المصدر / التصنيف</th>
@@ -494,10 +493,10 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
                            <th className="px-6 py-4 rounded-l-xl text-left">المبلغ</th>
                        </tr>
                    </thead>
-                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                   <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
                        {incomeTransactions.length > 0 ? (
                            incomeTransactions.map((t) => (
-                               <tr key={t.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                               <tr key={t.id} className="hover:bg-white dark:hover:bg-slate-800/50 transition-colors">
                                    <td className="px-6 py-4 font-medium whitespace-nowrap">
                                        {/* Force English Digits and Gregorian Date */}
                                        {new Date(t.date).toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: 'numeric' })}
@@ -530,13 +529,13 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
            <div className="md:hidden grid grid-cols-1 gap-4">
                {incomeTransactions.length > 0 ? (
                    incomeTransactions.map((t) => (
-                       <div key={t.id} className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-100 dark:border-slate-700">
+                       <div key={t.id} className="bg-white dark:bg-slate-800/80 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
                            <div className="flex justify-between items-start mb-2">
                                <div>
                                    <p className="text-xs text-slate-400 mb-1">
                                       {new Date(t.date).toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: 'numeric' })}
                                    </p>
-                                   <span className="bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded text-xs font-bold">
+                                   <span className="bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded text-xs font-bold border border-emerald-100 dark:border-emerald-800">
                                       {t.category}
                                    </span>
                                </div>
@@ -548,7 +547,7 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
                                </div>
                            </div>
                            {t.note && (
-                               <div className="pt-2 border-t border-slate-200 dark:border-slate-700 mt-2">
+                               <div className="pt-2 border-t border-slate-100 dark:border-slate-700 mt-2">
                                    <p className="text-sm text-slate-600 dark:text-slate-300">{t.note}</p>
                                </div>
                            )}

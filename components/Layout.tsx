@@ -221,7 +221,11 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col min-w-0 relative">
+      <main className="flex-1 flex flex-col min-w-0 relative overflow-hidden">
+        
+        {/* Decorative Glow Effect - Adjusted per request to match top-right feel but on top-left */}
+        <div className="absolute top-[-100px] left-[-100px] w-[400px] h-[400px] bg-[#bef264] rounded-full blur-[120px] opacity-25 dark:opacity-20 pointer-events-none z-0"></div>
+
         {/* Top Header */}
         <header className="px-4 md:px-8 py-5 flex items-center justify-between bg-ghost-white/80 dark:bg-slate-900/80 backdrop-blur-md md:bg-transparent sticky top-0 z-30 md:static border-b md:border-none border-slate-100 dark:border-slate-800 transition-colors">
            <div className="md:hidden flex items-center pt-2">
@@ -242,7 +246,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
            </div>
 
            {/* Search Bar (Desktop) */}
-           <div className="hidden md:flex flex-1 max-w-xl bg-white dark:bg-slate-900 rounded-full px-4 py-2.5 border border-slate-200 dark:border-slate-800 focus-within:ring-2 focus-within:ring-emerald-500 dark:focus-within:ring-[#bef264] focus-within:border-transparent transition-all shadow-sm">
+           <div className="hidden md:flex flex-1 max-w-xl bg-white dark:bg-slate-900 rounded-full px-4 py-2.5 border border-slate-200 dark:border-slate-800 focus-within:ring-2 focus-within:ring-emerald-500 dark:focus-within:ring-[#bef264] focus-within:border-transparent transition-all shadow-sm relative z-20">
               <Search className="text-slate-400 ml-3" size={20} />
               <input 
                 type="text" 
@@ -252,7 +256,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
            </div>
 
            {/* Right Actions */}
-           <div className="flex items-center gap-3 md:gap-5">
+           <div className="flex items-center gap-3 md:gap-5 relative z-20">
               {/* Theme Toggle (Replacement for Privacy Toggle) */}
               <button 
                 onClick={onThemeToggle}
@@ -320,7 +324,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
         </header>
 
         {/* Page Content */}
-        <div className="flex-1 px-4 md:px-8 pt-6 md:pt-0 pb-32 md:pb-8 overflow-y-auto overflow-x-hidden">
+        <div className="flex-1 px-4 md:px-8 pt-6 md:pt-0 pb-32 md:pb-8 overflow-y-auto overflow-x-hidden relative z-10">
           {children}
         </div>
       </main>
