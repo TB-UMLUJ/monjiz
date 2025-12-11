@@ -45,7 +45,7 @@ const LOAN_CATEGORIES = [
 ];
 
 // Common financial emojis for icon picker
-const ICON_OPTIONS = ['🏠', '🚗', '⚡', '💧', '🌐', '📱', '💳', '🎓', '✈️', '💍', '🏥', '🍽️', '🏋️', '🎮', '🛒', '🧸'];
+const ICON_OPTIONS = ['🏠', '🚗', '⚡', '💧', '🌐', '📱', '💳', '🎓', '✈️', '💍', '🏥', '🍽️', '🏋️', '🌐', '🛒', '🧸'];
 
 interface ManualScheduleItem {
     date: string;
@@ -168,6 +168,14 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
       icon: '',
       description: ''
   });
+
+  // Helper for smart currency formatting (e.g. 132.775 ألف)
+  const formatSmart = (val: number) => {
+      if (val >= 1000) {
+          return `${(val / 1000).toLocaleString('en-US', { maximumFractionDigits: 3 })} ألف`;
+      }
+      return `${val.toLocaleString('en-US', { maximumFractionDigits: 2 })} ريال`;
+  };
 
   // Clear selections when closing modals
   useEffect(() => {
@@ -501,6 +509,24 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
               }
           }
 
+          // FIX: If we have a custom schedule (e.g. device installment), we MUST update the dates 
+          // inside it to align with the new Start Date.
+          let finalCustomSchedule = newBill.customSchedule;
+
+          if (newBill.startDate && finalCustomSchedule && finalCustomSchedule.length > 0) {
+            const start = new Date(newBill.startDate);
+            finalCustomSchedule = finalCustomSchedule.map((item, idx) => {
+                const d = new Date(start);
+                // Default rule: Installments start 1 month after contract start
+                // Or if we want to be safe, assume monthly steps
+                d.setMonth(start.getMonth() + idx + 1); 
+                return {
+                    ...item,
+                    date: d.toISOString().split('T')[0]
+                };
+            });
+          }
+
           const billData: Bill = {
               id: editingBillId || '',
               name: name,
@@ -521,7 +547,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
               icon: newBill.icon, // Save detected icon
               description: newBill.description,
               paidDates: [],
-              customSchedule: newBill.customSchedule
+              customSchedule: finalCustomSchedule
           };
           
           if (editingBillId) {
@@ -1122,11 +1148,11 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                             <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 mb-4">
                                 <div>
                                     <span className="block mb-0.5">المدفوع</span>
-                                    <span className="font-bold text-slate-700 dark:text-slate-300 text-sm">{paid.toLocaleString('en-US')}</span>
+                                    <span className="font-bold text-slate-700 dark:text-slate-300 text-sm">{formatSmart(paid)}</span>
                                 </div>
                                 <div className="text-left">
                                     <span className="block mb-0.5">المتبقي</span>
-                                    <span className="font-bold text-rose-600 dark:text-rose-400 text-sm">{remaining.toLocaleString('en-US')}</span>
+                                    <span className="font-bold text-rose-600 dark:text-rose-400 text-sm">{formatSmart(remaining)}</span>
                                 </div>
                             </div>
                             
@@ -1134,7 +1160,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                                  <div>
                                     <span className="block text-slate-400 mb-1">القسط القادم</span>
                                     <span className="font-bold text-base text-slate-800 dark:text-white">
-                                        {nextPayment ? nextPayment.paymentAmount.toLocaleString('en-US') : '-'}
+                                        {nextPayment ? formatSmart(nextPayment.paymentAmount) : '-'}
                                     </span>
                                  </div>
                                  <div className="text-left border-r border-slate-200 dark:border-slate-700 pr-3">
@@ -1173,7 +1199,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                       </div>
                   </div>
                   <div className="text-2xl font-bold text-purple-800 dark:text-purple-200">
-                      {(filteredBills.reduce((acc, b) => acc + b.amount, 0) * 12).toLocaleString('en-US')} <span className="text-sm">/سنة</span>
+                      {formatSmart(filteredBills.reduce((acc, b) => acc + b.amount, 0) * 12)} <span className="text-sm">/سنة</span>
                   </div>
               </div>
           )}
@@ -1183,61 +1209,42 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                   const daysLeft = bill.endDate ? Math.ceil((new Date(bill.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : 999;
                   const isExpiringSoon = daysLeft < 30 && daysLeft > 0;
                   
-                  const paidCount = (bill.paidDates || []).length;
-                  let monthsLeft = 0;
-                  let estimatedRemaining = 0;
+                  // Use robust schedule calculation
+                  const schedule = getBillSchedule(bill);
+                  
                   let totalAmount = 0;
                   let paidAmount = 0;
+                  let monthsLeft = 0;
+                  let estimatedRemaining = 0;
                   let prog = 0;
-
-                  // --- FINANCIAL PROGRESS LOGIC ---
-                  if (bill.durationMonths && bill.durationMonths > 0) {
-                      monthsLeft = Math.max(0, bill.durationMonths - paidCount);
+                  
+                  if (bill.isSubscription) {
+                      totalAmount = bill.amount * 12; // Show annual projection for scale
+                      paidAmount = 0; // Not relevant for subscription progress bar context usually
+                      estimatedRemaining = bill.amount; // Monthly payment
+                      monthsLeft = 0; 
+                  } else if (schedule.length > 0) {
+                      totalAmount = schedule.reduce((acc, curr) => acc + curr.amount, 0);
+                      // Fallback: If totalDebt is explicitly set and larger than calculated, use it? 
+                      // No, rely on schedule components for consistency.
                       
-                      if (bill.totalDebt) {
-                          totalAmount = bill.totalDebt;
-                          paidAmount = (bill.downPayment || 0) + (bill.amount * paidCount);
-                          if (paidAmount > totalAmount) paidAmount = totalAmount;
-                          estimatedRemaining = Math.max(0, totalAmount - paidAmount);
-                      } else {
-                          totalAmount = bill.amount * bill.durationMonths;
-                          // Simple Estimate
-                          paidAmount = (bill.amount * paidCount);
-                          if(bill.downPayment) {
-                               paidAmount += bill.downPayment;
-                               totalAmount += bill.downPayment; // Adjust total if downpayment wasn't part of monthly calc
-                          }
-                          estimatedRemaining = Math.max(0, totalAmount - paidAmount);
-                      }
+                      paidAmount = schedule.filter(s => s.isPaid).reduce((acc, curr) => acc + curr.amount, 0);
+                      estimatedRemaining = Math.max(0, totalAmount - paidAmount);
+                      
+                      const totalInstallments = schedule.filter(s => s.type === 'installment').length;
+                      const paidInstallments = schedule.filter(s => s.type === 'installment' && s.isPaid).length;
+                      monthsLeft = Math.max(0, totalInstallments - paidInstallments);
                       
                       if (totalAmount > 0) prog = (paidAmount / totalAmount) * 100;
                   } else if (bill.endDate) {
-                      // Date based progress (Time elapsed)
-                      const totalDaysLeft = Math.ceil((new Date(bill.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-                      monthsLeft = Math.max(0, Math.ceil(totalDaysLeft / 30));
-                      estimatedRemaining = monthsLeft * bill.amount;
-                      
-                      // Progress bar based on TIME
-                      if (bill.startDate) {
-                          const start = new Date(bill.startDate).getTime();
-                          const end = new Date(bill.endDate).getTime();
-                          const now = new Date().getTime();
-                          const totalDuration = end - start;
-                          const elapsed = now - start;
-                          prog = Math.min(100, Math.max(0, (elapsed / totalDuration) * 100));
-                          
-                          // Estimate financial total based on time
-                          const totalMonths = Math.ceil(totalDuration / (1000 * 60 * 60 * 24 * 30));
-                          totalAmount = totalMonths * bill.amount;
-                          paidAmount = (totalMonths - monthsLeft) * bill.amount;
-                      } else {
-                          // No start date, just end date. Can't show progress bar accurately.
-                          totalAmount = estimatedRemaining; // Just show what's left
-                      }
+                      // Fallback for Date-only bills (legacy)
+                       const totalDaysLeft = Math.ceil((new Date(bill.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                       monthsLeft = Math.max(0, Math.ceil(totalDaysLeft / 30));
+                       estimatedRemaining = monthsLeft * bill.amount;
+                       totalAmount = estimatedRemaining; // Approximate
                   } else {
-                      // Ongoing (Utility/Sub)
-                      estimatedRemaining = bill.amount;
-                      totalAmount = bill.amount; // For display purposes
+                       totalAmount = bill.amount;
+                       estimatedRemaining = bill.amount;
                   }
 
                   // --- NEXT PAYMENT DATE LOGIC ---
@@ -1305,13 +1312,13 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                           <div>
                               <span className="block mb-0.5">{(bill.durationMonths || bill.totalDebt) ? 'القيمة / المدفوع' : 'القسط الشهري'}</span>
                               <span className="font-bold text-slate-700 dark:text-slate-300 text-sm">
-                                 {(bill.durationMonths || bill.totalDebt) ? paidAmount.toLocaleString('en-US') : bill.amount.toLocaleString('en-US')}
+                                 {(bill.durationMonths || bill.totalDebt) ? formatSmart(paidAmount) : formatSmart(bill.amount)}
                               </span>
                           </div>
                           <div className="text-left">
                               <span className="block mb-0.5">{(bill.durationMonths || bill.totalDebt) ? 'المتبقي (دين)' : 'المتوقع (متبقي)'}</span>
                               <span className="font-bold text-rose-600 dark:text-rose-400 text-sm">
-                                  {estimatedRemaining.toLocaleString('en-US')}
+                                  {formatSmart(estimatedRemaining)}
                               </span>
                           </div>
                       </div>
@@ -1321,7 +1328,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                               <div>
                               <span className="block text-slate-400 mb-1">القسط القادم</span>
                               <span className="font-bold text-base text-slate-800 dark:text-white">
-                                  {bill.amount.toLocaleString('en-US')}
+                                  {formatSmart(bill.amount)}
                               </span>
                               </div>
                               <div className="text-left border-r border-slate-200 dark:border-slate-700 pr-3">
@@ -1396,13 +1403,13 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                             <div className="bg-white dark:bg-slate-800 p-3 rounded-xl border dark:border-slate-700">
                                 <span className="text-slate-400 text-xs block mb-1">إجمالي المبلغ (شامل الأرباح)</span>
                                 <span className="font-bold text-lg dark:text-white">
-                                    {selectedLoan.schedule.reduce((a, c) => a + c.paymentAmount, 0).toLocaleString('en-US')}
+                                    {formatSmart(selectedLoan.schedule.reduce((a, c) => a + c.paymentAmount, 0))}
                                 </span>
                             </div>
                             <div className="bg-white dark:bg-slate-800 p-3 rounded-xl border dark:border-slate-700">
                                 <span className="text-slate-400 text-xs block mb-1">المتبقي</span>
                                 <span className="font-bold text-lg text-rose-600 dark:text-rose-400">
-                                    {selectedLoan.schedule.filter(s => !s.isPaid).reduce((a,c)=>a+c.paymentAmount,0).toLocaleString('en-US')}
+                                    {formatSmart(selectedLoan.schedule.filter(s => !s.isPaid).reduce((a,c)=>a+c.paymentAmount,0))}
                                 </span>
                             </div>
                         </div>
@@ -1536,7 +1543,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                         <div className="grid grid-cols-2 gap-4 text-sm">
                             <div className="bg-white dark:bg-slate-800 p-3 rounded-xl border dark:border-slate-700">
                                 <span className="text-slate-400 text-xs block mb-1">القسط الشهري</span>
-                                <span className="font-bold text-lg dark:text-white">{selectedBill.amount.toLocaleString('en-US')}</span>
+                                <span className="font-bold text-lg dark:text-white">{formatSmart(selectedBill.amount)}</span>
                             </div>
                             <div className="bg-white dark:bg-slate-800 p-3 rounded-xl border dark:border-slate-700">
                                 <span className="text-slate-400 text-xs block mb-1">تاريخ البداية</span>
@@ -1545,7 +1552,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                              {selectedBill.totalDebt && (
                                 <div className="col-span-2 bg-indigo-50 dark:bg-indigo-900/20 p-3 rounded-xl border border-indigo-100 dark:border-indigo-800">
                                     <span className="text-indigo-500 text-xs block mb-1 font-bold">إجمالي قيمة العقد/الدين</span>
-                                    <span className="font-bold text-lg text-indigo-700 dark:text-indigo-300">{selectedBill.totalDebt.toLocaleString('en-US')}</span>
+                                    <span className="font-bold text-lg text-indigo-700 dark:text-indigo-300">{formatSmart(selectedBill.totalDebt)}</span>
                                 </div>
                             )}
                             {selectedBill.deviceDetails && (
