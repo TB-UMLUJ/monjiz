@@ -79,6 +79,7 @@ export interface Bill {
   icon?: string; // New: Custom icon
   paidDates?: string[]; // New: Track individual paid installments (ISO Date Strings)
   customSchedule?: BillScheduleItem[]; // New: Custom schedule for variable monthly amounts
+  description?: string; // New: Details field
 }
 
 export interface RecurringTransaction {

@@ -1,4 +1,5 @@
 
+
 import React, { useEffect, useState } from 'react';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
@@ -9,7 +10,7 @@ import Settings from './pages/Settings';
 import Login from './pages/Login';
 import { storageService } from './services/storage';
 import { authService } from './services/auth';
-import { Loan, Transaction, UserSettings, Bill } from './types';
+import { Loan, Transaction, UserSettings, Bill, ThemeOption } from './types';
 import { Loader2 } from 'lucide-react';
 import { NotificationProvider, useNotification } from './contexts/NotificationContext';
 
@@ -117,6 +118,24 @@ const AppContent: React.FC = () => {
     setActiveTab('dashboard');
   };
 
+  const handleThemeToggle = async () => {
+      if (!settings) return;
+      // Toggle logic: If currently dark (or system dark), switch to light. Else dark.
+      const currentIsDark = settings.theme === 'dark' || (settings.theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      const newTheme: ThemeOption = currentIsDark ? 'light' : 'dark';
+      
+      const newSettings: UserSettings = { ...settings, theme: newTheme };
+      
+      // Optimistic update
+      setSettings(newSettings);
+      
+      try {
+        await storageService.saveSettings(newSettings);
+      } catch (e) {
+          console.error("Failed to save theme preference");
+      }
+  };
+
   const renderContent = () => {
     if (!settings) return null;
 
@@ -167,7 +186,15 @@ const AppContent: React.FC = () => {
   }
 
   return (
-    <Layout activeTab={activeTab} onTabChange={setActiveTab} onLogout={handleLogout} settings={settings} loans={loans} bills={bills}>
+    <Layout 
+      activeTab={activeTab} 
+      onTabChange={setActiveTab} 
+      onLogout={handleLogout} 
+      settings={settings} 
+      loans={loans} 
+      bills={bills}
+      onThemeToggle={handleThemeToggle}
+    >
       <div className="animate-fade-in text-slate-900 dark:text-slate-100">
          {renderContent()}
       </div>

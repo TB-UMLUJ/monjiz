@@ -1,3 +1,4 @@
+
 // Service Worker for Monjez PWA
 
 const CACHE_NAME = 'monjez-cache-v1';
@@ -61,7 +62,7 @@ self.addEventListener('push', (event) => {
       data = { title: 'إشعار جديد', body: event.data.text() };
     }
   } else {
-    data = { title: 'منجز', body: 'لديك تنبيه مالي جديد' };
+    data = { title: 'مواءمة', body: 'لديك تنبيه مالي جديد' };
   }
 
   const options = {

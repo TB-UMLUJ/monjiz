@@ -408,6 +408,7 @@ export const storageService = {
           renewalDate: b.renewal_date,
           status: b.status || 'active',
           icon: b.icon,
+          description: b.description, // Mapped here
           totalDebt: b.total_debt ? Number(b.total_debt) : undefined,
           paidDates: b.paid_dates || [],
           customSchedule: b.custom_schedule || []
@@ -432,6 +433,7 @@ export const storageService = {
           renewal_date: safeDate(bill.renewalDate),
           status: bill.status || 'active',
           icon: bill.icon,
+          description: bill.description || null, // Saved here
           total_debt: bill.totalDebt ? safeNumber(bill.totalDebt) : null,
           paid_dates: bill.paidDates || [],
           custom_schedule: bill.customSchedule || []
@@ -458,6 +460,7 @@ export const storageService = {
           renewal_date: safeDate(bill.renewalDate),
           status: bill.status,
           icon: bill.icon,
+          description: bill.description || null, // Updated here
           total_debt: bill.totalDebt ? safeNumber(bill.totalDebt) : null,
           paid_dates: bill.paidDates || [],
           custom_schedule: bill.customSchedule || []

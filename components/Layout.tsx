@@ -12,11 +12,11 @@ import {
   Crown,
   User,
   X,
-  Eye,
-  EyeOff,
   AlertTriangle,
   Clock,
-  CheckCircle2
+  CheckCircle2,
+  Moon,
+  Sun
 } from 'lucide-react';
 import { UserSettings, Loan, Bill } from '../types';
 import { getBillSchedule } from '../services/loanCalculator';
@@ -29,6 +29,7 @@ interface LayoutProps {
   settings?: UserSettings | null; // Receive settings to get the logo
   loans?: Loan[]; // Pass loans for notifications
   bills?: Bill[]; // Pass bills for notifications
+  onThemeToggle?: () => void; // New prop for theme toggling
 }
 
 interface NotificationItem {
@@ -39,17 +40,8 @@ interface NotificationItem {
   type: 'alert' | 'warning' | 'info' | 'success';
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLogout, settings, loans = [], bills = [] }) => {
+const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLogout, settings, loans = [], bills = [], onThemeToggle }) => {
   const [showNotifications, setShowNotifications] = useState(false);
-  const [privacyMode, setPrivacyMode] = useState(false);
-
-  useEffect(() => {
-    if (privacyMode) {
-      document.body.classList.add('privacy-mode');
-    } else {
-      document.body.classList.remove('privacy-mode');
-    }
-  }, [privacyMode]);
 
   // --- Dynamic Notifications Logic ---
   const notifications: NotificationItem[] = useMemo(() => {
@@ -154,19 +146,12 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
   
   // Use appLogo from settings, if not available, it will be handled in JSX to show a placeholder
   const logoSrc = settings?.appLogo;
+  
+  // Check if current theme is dark
+  const isDark = settings?.theme === 'dark';
 
   return (
     <div className="min-h-screen bg-ghost-white dark:bg-[#0f172a] flex font-tajawal text-eerie-black dark:text-slate-100 transition-colors duration-300">
-      <style>{`
-        .privacy-mode .sensitive-data {
-            filter: blur(6px);
-            transition: filter 0.3s;
-            user-select: none;
-        }
-        .privacy-mode .sensitive-data:hover {
-            filter: blur(0);
-        }
-      `}</style>
       
       {/* Sidebar Desktop */}
       <aside className="hidden md:flex flex-col w-72 bg-white dark:bg-slate-900 h-screen sticky top-0 border-l border-slate-100 dark:border-slate-800 px-6 py-8 z-40 transition-colors">
@@ -182,7 +167,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
                  <div className="bg-[#bef264] p-3 rounded-2xl mb-2 shadow-sm">
                     <Wallet size={32} className="text-slate-900" />
                  </div>
-                 <span className="font-bold text-xl tracking-tight">منجز</span>
+                 <span className="font-bold text-xl tracking-tight">مواءمة</span>
              </div>
            )}
         </div>
@@ -197,11 +182,11 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
                 onClick={() => onTabChange(item.id)}
                 className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all duration-200 group ${
                   isActive 
-                    ? 'bg-eerie-black dark:bg-[#bef264] text-white dark:text-slate-900 font-bold shadow-sm' 
-                    : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-eerie-black dark:hover:text-white'
+                    ? 'bg-emerald-600 dark:bg-[#bef264] text-white dark:text-slate-900 font-bold shadow-sm' 
+                    : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-emerald-700 dark:hover:text-white'
                 }`}
               >
-                <Icon size={22} strokeWidth={isActive ? 2.5 : 2} className={isActive ? 'text-white dark:text-slate-900' : 'text-slate-400 dark:text-slate-500 group-hover:text-eerie-black dark:group-hover:text-white'} />
+                <Icon size={22} strokeWidth={isActive ? 2.5 : 2} className={isActive ? 'text-white dark:text-slate-900' : 'text-slate-400 dark:text-slate-500 group-hover:text-emerald-600 dark:group-hover:text-white'} />
                 <span className="text-base">{item.label}</span>
               </button>
             );
@@ -251,13 +236,13 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
                     <div className="bg-[#bef264] p-1.5 rounded-lg">
                         <Wallet size={20} className="text-slate-900" />
                     </div>
-                    <span className="font-bold text-lg text-slate-800 dark:text-white">منجز</span>
+                    <span className="font-bold text-lg text-slate-800 dark:text-white">مواءمة</span>
                 </div>
               )}
            </div>
 
            {/* Search Bar (Desktop) */}
-           <div className="hidden md:flex flex-1 max-w-xl bg-white dark:bg-slate-900 rounded-full px-4 py-2.5 border border-slate-200 dark:border-slate-800 focus-within:ring-2 focus-within:ring-eerie-black dark:focus-within:ring-[#bef264] focus-within:border-transparent transition-all shadow-sm">
+           <div className="hidden md:flex flex-1 max-w-xl bg-white dark:bg-slate-900 rounded-full px-4 py-2.5 border border-slate-200 dark:border-slate-800 focus-within:ring-2 focus-within:ring-emerald-500 dark:focus-within:ring-[#bef264] focus-within:border-transparent transition-all shadow-sm">
               <Search className="text-slate-400 ml-3" size={20} />
               <input 
                 type="text" 
@@ -268,19 +253,19 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
 
            {/* Right Actions */}
            <div className="flex items-center gap-3 md:gap-5">
-              {/* Privacy Toggle */}
+              {/* Theme Toggle (Replacement for Privacy Toggle) */}
               <button 
-                onClick={() => setPrivacyMode(!privacyMode)}
-                className={`w-10 h-10 rounded-full flex items-center justify-center border transition-all ${privacyMode ? 'bg-indigo-50 border-indigo-200 text-indigo-600' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500'}`}
-                title="وضع الخصوصية"
+                onClick={onThemeToggle}
+                className={`w-10 h-10 rounded-full flex items-center justify-center border transition-all ${isDark ? 'bg-slate-800 border-slate-700 text-yellow-400' : 'bg-white border-slate-200 text-slate-500'}`}
+                title="تغيير المظهر"
               >
-                 {privacyMode ? <EyeOff size={20} /> : <Eye size={20} />}
+                 {isDark ? <Sun size={20} /> : <Moon size={20} />}
               </button>
 
               <div className="relative">
                 <button 
                   onClick={() => setShowNotifications(!showNotifications)}
-                  className={`w-10 h-10 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center border transition-all relative ${showNotifications ? 'border-eerie-black dark:border-[#bef264] bg-slate-50 dark:bg-lime-900/20 text-eerie-black dark:text-lime-400' : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:text-eerie-black dark:hover:text-white hover:shadow-md'}`}
+                  className={`w-10 h-10 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center border transition-all relative ${showNotifications ? 'border-emerald-500 dark:border-[#bef264] bg-slate-50 dark:bg-lime-900/20 text-emerald-600 dark:text-lime-400' : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-white hover:shadow-md'}`}
                 >
                   <Bell size={20} />
                   {hasUnread && <span className="absolute top-2 right-2.5 w-2 h-2 bg-rose-500 rounded-full border border-white dark:border-slate-800"></span>}
@@ -318,10 +303,10 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
               </div>
               
               <div className="hidden md:flex items-center gap-3 pl-1 pr-4 py-1 bg-white dark:bg-slate-800 rounded-full border border-slate-200 dark:border-slate-700 cursor-pointer hover:shadow-md transition-all group" onClick={() => onTabChange('settings')}>
-                 <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-300 group-hover:bg-eerie-black dark:group-hover:bg-[#bef264] group-hover:text-white dark:group-hover:text-slate-900 transition-colors">
+                 <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-300 group-hover:bg-emerald-600 dark:group-hover:bg-[#bef264] group-hover:text-white dark:group-hover:text-slate-900 transition-colors">
                     <User size={16} />
                  </div>
-                 <span className="text-sm font-bold text-slate-700 dark:text-slate-200 ml-2 group-hover:text-eerie-black dark:group-hover:text-slate-100">عمر محمد</span>
+                 <span className="text-sm font-bold text-slate-700 dark:text-slate-200 ml-2 group-hover:text-emerald-700 dark:group-hover:text-slate-100">عمر محمد</span>
               </div>
               
               <a
@@ -354,7 +339,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
               aria-current={isActive ? 'page' : undefined}
             >
               {isActive ? (
-                <div className="flex items-center justify-center gap-2 rounded-full transition-all duration-300 ease-out bg-eerie-black dark:bg-[#bef264] text-white dark:text-slate-900 px-5 py-2.5 shadow-md">
+                <div className="flex items-center justify-center gap-2 rounded-full transition-all duration-300 ease-out bg-emerald-600 dark:bg-[#bef264] text-white dark:text-slate-900 px-5 py-2.5 shadow-md">
                   <Icon size={20} strokeWidth={2.5} />
                   <span className="text-sm font-bold whitespace-nowrap animate-fade-in">{item.label}</span>
                 </div>

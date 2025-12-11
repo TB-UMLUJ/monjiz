@@ -391,7 +391,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
                 </button>
                <button 
                   onClick={handleOpenAddModal}
-                  className="bg-eerie-black text-white px-5 py-3 rounded-xl font-bold text-sm hover:bg-black transition-colors flex items-center justify-center gap-2 shadow-lg hover:shadow-xl shadow-slate-900/10"
+                  className="bg-emerald-600 dark:bg-emerald-600 text-white px-5 py-3 rounded-xl font-bold text-sm hover:bg-emerald-700 dark:hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 shadow-lg hover:shadow-xl shadow-slate-900/10"
                 >
                   <Plus size={18} />
                   <span>إضافة عملية</span>
@@ -630,7 +630,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
                                  <Trash2 size={20}/>
                              </button>
                          )}
-                        <button type="submit" disabled={isProcessing} className={`flex-1 text-white dark:text-slate-900 py-3 rounded-xl font-bold transition-all transform active:scale-95 shadow-lg flex items-center justify-center gap-2 ${editingId ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-eerie-black dark:bg-[#bef264] hover:bg-black dark:hover:bg-[#a3e635]'}`}>
+                        <button type="submit" disabled={isProcessing} className={`flex-1 text-white dark:text-slate-900 py-3 rounded-xl font-bold transition-all transform active:scale-95 shadow-lg flex items-center justify-center gap-2 ${editingId ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-emerald-600 dark:bg-[#bef264] hover:bg-emerald-700 dark:hover:bg-[#a3e635]'}`}>
                         {isProcessing ? <Loader2 className="animate-spin" /> : (editingId ? <><Save size={18}/> تحديث العملية</> : <><Plus size={18}/> حفظ العملية</>)}
                         </button>
                     </div>
@@ -733,7 +733,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
                                         setSelectedTx(null);
                                     }
                                 }}
-                                className="flex-[2] py-3 bg-eerie-black text-white dark:bg-slate-200 dark:text-slate-900 rounded-xl text-sm font-bold hover:bg-black transition-colors flex items-center justify-center gap-2">
+                                className="flex-[2] py-3 bg-emerald-600 text-white dark:bg-slate-200 dark:text-slate-900 rounded-xl text-sm font-bold hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2">
                                 <Edit3 size={16}/> تعديل
                             </button>
                         </div>

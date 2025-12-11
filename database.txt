@@ -1,13 +1,19 @@
 
+-- =================================================================================
+-- SMART DATABASE MIGRATION SCRIPT (Idempotent & Self-Cleaning)
+-- =================================================================================
+-- This script will:
+-- 1. Create tables if they don't exist.
+-- 2. Add missing columns.
+-- 3. REMOVE (DROP) columns that are not defined in this script (Cleanup).
+-- 4. Add constraints safely without duplication errors.
+-- =================================================================================
 
--- Smart Database Schema for Monjez App (PostgreSQL)
--- This script is Idempotent.
-
--- 1. Enable UUID Extension
+-- 1. EXTENSIONS
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- 2. Handle Enums
-DO $$
+-- 2. ENUMS (Safe Creation)
+DO $$ 
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'transaction_type') THEN
         CREATE TYPE transaction_type AS ENUM ('income', 'expense');
@@ -18,43 +24,84 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'loan_status') THEN
         CREATE TYPE loan_status AS ENUM ('active', 'completed');
     END IF;
-END$$;
+END $$;
 
--- USERS
-CREATE TABLE IF NOT EXISTS public.users (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4()
-);
+-- =================================================================================
+-- FUNCTION: SYNC TABLE COLUMNS (Add Missing / Drop Extra)
+-- =================================================================================
+-- This anonymous block logic is applied to each table below.
+-- =================================================================================
+
+
+-- >>> TABLE: USERS <<<
+CREATE TABLE IF NOT EXISTS public.users (id UUID PRIMARY KEY DEFAULT uuid_generate_v4());
+-- Add Columns
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS username VARCHAR(255);
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255);
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+-- Cleanup Extra Columns
+DO $$
+DECLARE col_rec RECORD;
+BEGIN
+    FOR col_rec IN 
+        SELECT column_name FROM information_schema.columns 
+        WHERE table_schema = 'public' AND table_name = 'users' 
+        AND column_name NOT IN ('id', 'username', 'password_hash', 'created_at')
+    LOOP
+        EXECUTE 'ALTER TABLE public.users DROP COLUMN ' || col_rec.column_name;
+    END LOOP;
+END $$;
 
--- SETTINGS
-CREATE TABLE IF NOT EXISTS public.settings (
-    user_id UUID PRIMARY KEY REFERENCES public.users(id) ON DELETE CASCADE
-);
+
+-- >>> TABLE: SETTINGS <<<
+CREATE TABLE IF NOT EXISTS public.settings (user_id UUID PRIMARY KEY REFERENCES public.users(id) ON DELETE CASCADE);
+-- Add Columns
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS currency VARCHAR(10) DEFAULT 'SAR';
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS monthly_limit DECIMAL(12, 2) DEFAULT 5000.00;
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS alert_threshold INTEGER DEFAULT 80;
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS theme VARCHAR(20) DEFAULT 'system';
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS budget_rollover BOOLEAN DEFAULT FALSE;
-ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS app_logo TEXT; -- New: Store App Logo Base64
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS app_logo TEXT;
+-- Cleanup Extra Columns
+DO $$
+DECLARE col_rec RECORD;
+BEGIN
+    FOR col_rec IN 
+        SELECT column_name FROM information_schema.columns 
+        WHERE table_schema = 'public' AND table_name = 'settings' 
+        AND column_name NOT IN ('user_id', 'currency', 'monthly_limit', 'alert_threshold', 'theme', 'budget_rollover', 'app_logo')
+    LOOP
+        EXECUTE 'ALTER TABLE public.settings DROP COLUMN ' || col_rec.column_name;
+    END LOOP;
+END $$;
 
--- INCOME SOURCES
-CREATE TABLE IF NOT EXISTS public.income_sources (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4()
-);
+
+-- >>> TABLE: INCOME_SOURCES <<<
+CREATE TABLE IF NOT EXISTS public.income_sources (id UUID PRIMARY KEY DEFAULT uuid_generate_v4());
+-- Add Columns
 ALTER TABLE public.income_sources ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES public.users(id) ON DELETE CASCADE;
 ALTER TABLE public.income_sources ADD COLUMN IF NOT EXISTS name VARCHAR(255);
 ALTER TABLE public.income_sources ADD COLUMN IF NOT EXISTS amount DECIMAL(12, 2);
 ALTER TABLE public.income_sources ADD COLUMN IF NOT EXISTS day_of_month INTEGER;
--- New column to store breakdown (Basic, Gosi, Allowances)
 ALTER TABLE public.income_sources ADD COLUMN IF NOT EXISTS details JSONB DEFAULT '{}'::jsonb;
 ALTER TABLE public.income_sources ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+-- Cleanup
+DO $$
+DECLARE col_rec RECORD;
+BEGIN
+    FOR col_rec IN 
+        SELECT column_name FROM information_schema.columns 
+        WHERE table_schema = 'public' AND table_name = 'income_sources' 
+        AND column_name NOT IN ('id', 'user_id', 'name', 'amount', 'day_of_month', 'details', 'created_at')
+    LOOP
+        EXECUTE 'ALTER TABLE public.income_sources DROP COLUMN ' || col_rec.column_name;
+    END LOOP;
+END $$;
 
--- BANK CARDS
-CREATE TABLE IF NOT EXISTS public.bank_cards (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4()
-);
+
+-- >>> TABLE: BANK_CARDS <<<
+CREATE TABLE IF NOT EXISTS public.bank_cards (id UUID PRIMARY KEY DEFAULT uuid_generate_v4());
+-- Add Columns
 ALTER TABLE public.bank_cards ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES public.users(id) ON DELETE CASCADE;
 ALTER TABLE public.bank_cards ADD COLUMN IF NOT EXISTS bank_name VARCHAR(255);
 ALTER TABLE public.bank_cards ADD COLUMN IF NOT EXISTS card_number VARCHAR(4);
@@ -65,18 +112,49 @@ ALTER TABLE public.bank_cards ADD COLUMN IF NOT EXISTS balance DECIMAL(12, 2) DE
 ALTER TABLE public.bank_cards ADD COLUMN IF NOT EXISTS logo_url TEXT;
 ALTER TABLE public.bank_cards ADD COLUMN IF NOT EXISTS logo_position VARCHAR(20) DEFAULT 'top-left';
 ALTER TABLE public.bank_cards ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+-- Cleanup
+DO $$
+DECLARE col_rec RECORD;
+BEGIN
+    FOR col_rec IN 
+        SELECT column_name FROM information_schema.columns 
+        WHERE table_schema = 'public' AND table_name = 'bank_cards' 
+        AND column_name NOT IN ('id', 'user_id', 'bank_name', 'card_number', 'account_last4', 'card_type', 'color', 'balance', 'logo_url', 'logo_position', 'created_at')
+    LOOP
+        EXECUTE 'ALTER TABLE public.bank_cards DROP COLUMN ' || col_rec.column_name;
+    END LOOP;
+END $$;
 
--- BANK LOGOS (New)
-CREATE TABLE IF NOT EXISTS public.bank_logos (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    bank_name VARCHAR(255) UNIQUE,
-    logo_url TEXT
-);
 
--- TRANSACTIONS
-CREATE TABLE IF NOT EXISTS public.transactions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4()
-);
+-- >>> TABLE: BANK_LOGOS <<<
+CREATE TABLE IF NOT EXISTS public.bank_logos (id UUID PRIMARY KEY DEFAULT uuid_generate_v4());
+-- Add Columns
+ALTER TABLE public.bank_logos ADD COLUMN IF NOT EXISTS bank_name VARCHAR(255);
+ALTER TABLE public.bank_logos ADD COLUMN IF NOT EXISTS logo_url TEXT;
+-- Constraint check
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'bank_logos_bank_name_key') THEN
+        ALTER TABLE public.bank_logos ADD CONSTRAINT bank_logos_bank_name_key UNIQUE (bank_name);
+    END IF;
+END $$;
+-- Cleanup
+DO $$
+DECLARE col_rec RECORD;
+BEGIN
+    FOR col_rec IN 
+        SELECT column_name FROM information_schema.columns 
+        WHERE table_schema = 'public' AND table_name = 'bank_logos' 
+        AND column_name NOT IN ('id', 'bank_name', 'logo_url')
+    LOOP
+        EXECUTE 'ALTER TABLE public.bank_logos DROP COLUMN ' || col_rec.column_name;
+    END LOOP;
+END $$;
+
+
+-- >>> TABLE: TRANSACTIONS <<<
+CREATE TABLE IF NOT EXISTS public.transactions (id UUID PRIMARY KEY DEFAULT uuid_generate_v4());
+-- Add Columns
 ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES public.users(id) ON DELETE CASCADE;
 ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS amount DECIMAL(12, 2);
 ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS type transaction_type;
@@ -85,21 +163,31 @@ ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS note TEXT;
 ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
 ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS card_id UUID REFERENCES public.bank_cards(id) ON DELETE SET NULL;
 ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
--- New columns for enhanced transaction tracking
 ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS merchant VARCHAR(255);
 ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS fee DECIMAL(12, 2) DEFAULT 0.00;
 ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS balance_after DECIMAL(12, 2);
 ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS transaction_reference VARCHAR(100);
--- Detailed fields requested
-ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS operation_kind VARCHAR(50); -- نوع العملية التفصيلي
-ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS card_last4 VARCHAR(4);      -- آخر 4 أرقام البطاقة
-ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS country VARCHAR(100);       -- الدولة
-ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50); -- وسيلة الدفع
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS operation_kind VARCHAR(50);
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS card_last4 VARCHAR(4);
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS country VARCHAR(100);
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50);
+-- Cleanup
+DO $$
+DECLARE col_rec RECORD;
+BEGIN
+    FOR col_rec IN 
+        SELECT column_name FROM information_schema.columns 
+        WHERE table_schema = 'public' AND table_name = 'transactions' 
+        AND column_name NOT IN ('id', 'user_id', 'amount', 'type', 'category', 'note', 'date', 'card_id', 'created_at', 'merchant', 'fee', 'balance_after', 'transaction_reference', 'operation_kind', 'card_last4', 'country', 'payment_method')
+    LOOP
+        EXECUTE 'ALTER TABLE public.transactions DROP COLUMN ' || col_rec.column_name;
+    END LOOP;
+END $$;
 
--- LOANS
-CREATE TABLE IF NOT EXISTS public.loans (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4()
-);
+
+-- >>> TABLE: LOANS <<<
+CREATE TABLE IF NOT EXISTS public.loans (id UUID PRIMARY KEY DEFAULT uuid_generate_v4());
+-- Add Columns
 ALTER TABLE public.loans ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES public.users(id) ON DELETE CASCADE;
 ALTER TABLE public.loans ADD COLUMN IF NOT EXISTS name VARCHAR(255);
 ALTER TABLE public.loans ADD COLUMN IF NOT EXISTS description TEXT;
@@ -112,11 +200,23 @@ ALTER TABLE public.loans ADD COLUMN IF NOT EXISTS status loan_status DEFAULT 'ac
 ALTER TABLE public.loans ADD COLUMN IF NOT EXISTS contract_pdf TEXT;
 ALTER TABLE public.loans ADD COLUMN IF NOT EXISTS icon TEXT;
 ALTER TABLE public.loans ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+-- Cleanup
+DO $$
+DECLARE col_rec RECORD;
+BEGIN
+    FOR col_rec IN 
+        SELECT column_name FROM information_schema.columns 
+        WHERE table_schema = 'public' AND table_name = 'loans' 
+        AND column_name NOT IN ('id', 'user_id', 'name', 'description', 'total_amount', 'start_date', 'duration_months', 'interest_rate', 'type', 'status', 'contract_pdf', 'icon', 'created_at')
+    LOOP
+        EXECUTE 'ALTER TABLE public.loans DROP COLUMN ' || col_rec.column_name;
+    END LOOP;
+END $$;
 
--- LOAN SCHEDULE
-CREATE TABLE IF NOT EXISTS public.loan_schedule (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4()
-);
+
+-- >>> TABLE: LOAN_SCHEDULE <<<
+CREATE TABLE IF NOT EXISTS public.loan_schedule (id UUID PRIMARY KEY DEFAULT uuid_generate_v4());
+-- Add Columns
 ALTER TABLE public.loan_schedule ADD COLUMN IF NOT EXISTS loan_id UUID REFERENCES public.loans(id) ON DELETE CASCADE;
 ALTER TABLE public.loan_schedule ADD COLUMN IF NOT EXISTS payment_date DATE;
 ALTER TABLE public.loan_schedule ADD COLUMN IF NOT EXISTS payment_amount DECIMAL(12, 2);
@@ -124,11 +224,23 @@ ALTER TABLE public.loan_schedule ADD COLUMN IF NOT EXISTS principal_component DE
 ALTER TABLE public.loan_schedule ADD COLUMN IF NOT EXISTS interest_component DECIMAL(12, 2);
 ALTER TABLE public.loan_schedule ADD COLUMN IF NOT EXISTS remaining_balance DECIMAL(12, 2);
 ALTER TABLE public.loan_schedule ADD COLUMN IF NOT EXISTS is_paid BOOLEAN DEFAULT FALSE;
+-- Cleanup
+DO $$
+DECLARE col_rec RECORD;
+BEGIN
+    FOR col_rec IN 
+        SELECT column_name FROM information_schema.columns 
+        WHERE table_schema = 'public' AND table_name = 'loan_schedule' 
+        AND column_name NOT IN ('id', 'loan_id', 'payment_date', 'payment_amount', 'principal_component', 'interest_component', 'remaining_balance', 'is_paid')
+    LOOP
+        EXECUTE 'ALTER TABLE public.loan_schedule DROP COLUMN ' || col_rec.column_name;
+    END LOOP;
+END $$;
 
--- BILLS
-CREATE TABLE IF NOT EXISTS public.bills (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4()
-);
+
+-- >>> TABLE: BILLS <<<
+CREATE TABLE IF NOT EXISTS public.bills (id UUID PRIMARY KEY DEFAULT uuid_generate_v4());
+-- Add Columns
 ALTER TABLE public.bills ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES public.users(id) ON DELETE CASCADE;
 ALTER TABLE public.bills ADD COLUMN IF NOT EXISTS name VARCHAR(255);
 ALTER TABLE public.bills ADD COLUMN IF NOT EXISTS provider VARCHAR(100);
@@ -145,16 +257,28 @@ ALTER TABLE public.bills ADD COLUMN IF NOT EXISTS is_subscription BOOLEAN DEFAUL
 ALTER TABLE public.bills ADD COLUMN IF NOT EXISTS renewal_date DATE;
 ALTER TABLE public.bills ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'active'; 
 ALTER TABLE public.bills ADD COLUMN IF NOT EXISTS icon TEXT;
+ALTER TABLE public.bills ADD COLUMN IF NOT EXISTS description TEXT;
 ALTER TABLE public.bills ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
--- New Columns for Bill Management
 ALTER TABLE public.bills ADD COLUMN IF NOT EXISTS total_debt DECIMAL(12, 2);
 ALTER TABLE public.bills ADD COLUMN IF NOT EXISTS paid_dates JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE public.bills ADD COLUMN IF NOT EXISTS custom_schedule JSONB DEFAULT '[]'::jsonb;
+-- Cleanup
+DO $$
+DECLARE col_rec RECORD;
+BEGIN
+    FOR col_rec IN 
+        SELECT column_name FROM information_schema.columns 
+        WHERE table_schema = 'public' AND table_name = 'bills' 
+        AND column_name NOT IN ('id', 'user_id', 'name', 'provider', 'type', 'amount', 'has_end_date', 'end_date', 'device_details', 'start_date', 'duration_months', 'last_payment_amount', 'down_payment', 'is_subscription', 'renewal_date', 'status', 'icon', 'description', 'created_at', 'total_debt', 'paid_dates', 'custom_schedule')
+    LOOP
+        EXECUTE 'ALTER TABLE public.bills DROP COLUMN ' || col_rec.column_name;
+    END LOOP;
+END $$;
 
--- FINANCIAL GOALS
-CREATE TABLE IF NOT EXISTS public.financial_goals (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4()
-);
+
+-- >>> TABLE: FINANCIAL_GOALS <<<
+CREATE TABLE IF NOT EXISTS public.financial_goals (id UUID PRIMARY KEY DEFAULT uuid_generate_v4());
+-- Add Columns
 ALTER TABLE public.financial_goals ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES public.users(id) ON DELETE CASCADE;
 ALTER TABLE public.financial_goals ADD COLUMN IF NOT EXISTS name VARCHAR(255);
 ALTER TABLE public.financial_goals ADD COLUMN IF NOT EXISTS target_amount DECIMAL(12, 2);
@@ -162,11 +286,23 @@ ALTER TABLE public.financial_goals ADD COLUMN IF NOT EXISTS current_amount DECIM
 ALTER TABLE public.financial_goals ADD COLUMN IF NOT EXISTS icon TEXT;
 ALTER TABLE public.financial_goals ADD COLUMN IF NOT EXISTS color VARCHAR(50);
 ALTER TABLE public.financial_goals ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+-- Cleanup
+DO $$
+DECLARE col_rec RECORD;
+BEGIN
+    FOR col_rec IN 
+        SELECT column_name FROM information_schema.columns 
+        WHERE table_schema = 'public' AND table_name = 'financial_goals' 
+        AND column_name NOT IN ('id', 'user_id', 'name', 'target_amount', 'current_amount', 'icon', 'color', 'created_at')
+    LOOP
+        EXECUTE 'ALTER TABLE public.financial_goals DROP COLUMN ' || col_rec.column_name;
+    END LOOP;
+END $$;
 
--- RECURRING TRANSACTIONS
-CREATE TABLE IF NOT EXISTS public.recurring_transactions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4()
-);
+
+-- >>> TABLE: RECURRING_TRANSACTIONS <<<
+CREATE TABLE IF NOT EXISTS public.recurring_transactions (id UUID PRIMARY KEY DEFAULT uuid_generate_v4());
+-- Add Columns
 ALTER TABLE public.recurring_transactions ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES public.users(id) ON DELETE CASCADE;
 ALTER TABLE public.recurring_transactions ADD COLUMN IF NOT EXISTS name VARCHAR(255);
 ALTER TABLE public.recurring_transactions ADD COLUMN IF NOT EXISTS amount DECIMAL(12, 2);
@@ -175,46 +311,69 @@ ALTER TABLE public.recurring_transactions ADD COLUMN IF NOT EXISTS category VARC
 ALTER TABLE public.recurring_transactions ADD COLUMN IF NOT EXISTS day_of_month INTEGER;
 ALTER TABLE public.recurring_transactions ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT TRUE;
 ALTER TABLE public.recurring_transactions ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+-- Cleanup
+DO $$
+DECLARE col_rec RECORD;
+BEGIN
+    FOR col_rec IN 
+        SELECT column_name FROM information_schema.columns 
+        WHERE table_schema = 'public' AND table_name = 'recurring_transactions' 
+        AND column_name NOT IN ('id', 'user_id', 'name', 'amount', 'type', 'category', 'day_of_month', 'active', 'created_at')
+    LOOP
+        EXECUTE 'ALTER TABLE public.recurring_transactions DROP COLUMN ' || col_rec.column_name;
+    END LOOP;
+END $$;
 
--- CUSTOM CATEGORIES
-CREATE TABLE IF NOT EXISTS public.custom_categories (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4()
-);
+
+-- >>> TABLE: CUSTOM_CATEGORIES <<<
+CREATE TABLE IF NOT EXISTS public.custom_categories (id UUID PRIMARY KEY DEFAULT uuid_generate_v4());
+-- Add Columns
 ALTER TABLE public.custom_categories ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES public.users(id) ON DELETE CASCADE;
 ALTER TABLE public.custom_categories ADD COLUMN IF NOT EXISTS name VARCHAR(100);
 ALTER TABLE public.custom_categories ADD COLUMN IF NOT EXISTS icon TEXT;
 ALTER TABLE public.custom_categories ADD COLUMN IF NOT EXISTS color VARCHAR(20);
 ALTER TABLE public.custom_categories ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+-- Cleanup
+DO $$
+DECLARE col_rec RECORD;
+BEGIN
+    FOR col_rec IN 
+        SELECT column_name FROM information_schema.columns 
+        WHERE table_schema = 'public' AND table_name = 'custom_categories' 
+        AND column_name NOT IN ('id', 'user_id', 'name', 'icon', 'color', 'created_at')
+    LOOP
+        EXECUTE 'ALTER TABLE public.custom_categories DROP COLUMN ' || col_rec.column_name;
+    END LOOP;
+END $$;
 
--- PUSH SUBSCRIPTIONS (New for PWA)
-CREATE TABLE IF NOT EXISTS public.push_subscriptions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
-    endpoint TEXT NOT NULL,
-    keys JSONB NOT NULL,
-    icon_url TEXT, -- To store custom icon URL for the app notification
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
 
--- *** MIGRATION COMMANDS ***
--- Run these to fix existing tables
-ALTER TABLE public.loans ALTER COLUMN icon TYPE TEXT;
-ALTER TABLE public.bills ALTER COLUMN icon TYPE TEXT;
-ALTER TABLE public.financial_goals ALTER COLUMN icon TYPE TEXT;
-ALTER TABLE public.custom_categories ALTER COLUMN icon TYPE TEXT;
-ALTER TABLE public.income_sources ADD COLUMN IF NOT EXISTS details JSONB DEFAULT '{}'::jsonb;
-ALTER TABLE public.bills ADD COLUMN IF NOT EXISTS total_debt DECIMAL(12, 2);
-ALTER TABLE public.bills ADD COLUMN IF NOT EXISTS paid_dates JSONB DEFAULT '[]'::jsonb;
-ALTER TABLE public.bills ADD COLUMN IF NOT EXISTS custom_schedule JSONB DEFAULT '[]'::jsonb;
-ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS merchant VARCHAR(255);
-ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS fee DECIMAL(12, 2) DEFAULT 0.00;
-ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS balance_after DECIMAL(12, 2);
-ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS transaction_reference VARCHAR(100);
-ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS operation_kind VARCHAR(50);
-ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS card_last4 VARCHAR(4);
-ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS country VARCHAR(100);
-ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50);
-ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS app_logo TEXT;
+-- >>> TABLE: PUSH_SUBSCRIPTIONS (FIXED CONSTRAINT ISSUE) <<<
+CREATE TABLE IF NOT EXISTS public.push_subscriptions (id UUID PRIMARY KEY DEFAULT uuid_generate_v4());
+-- Add Columns
+ALTER TABLE public.push_subscriptions ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES public.users(id) ON DELETE SET NULL;
+ALTER TABLE public.push_subscriptions ADD COLUMN IF NOT EXISTS endpoint TEXT;
+ALTER TABLE public.push_subscriptions ADD COLUMN IF NOT EXISTS keys JSONB;
+ALTER TABLE public.push_subscriptions ADD COLUMN IF NOT EXISTS icon_url TEXT;
+ALTER TABLE public.push_subscriptions ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
 
--- IMPORTANT: Run this to prevent duplicate subscriptions
-ALTER TABLE public.push_subscriptions ADD CONSTRAINT push_subscriptions_endpoint_key UNIQUE (endpoint);
+-- Smart Constraint Addition (Checks existence first)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'push_subscriptions_endpoint_key') THEN
+        ALTER TABLE public.push_subscriptions ADD CONSTRAINT push_subscriptions_endpoint_key UNIQUE (endpoint);
+    END IF;
+END $$;
+
+-- Cleanup
+DO $$
+DECLARE col_rec RECORD;
+BEGIN
+    FOR col_rec IN 
+        SELECT column_name FROM information_schema.columns 
+        WHERE table_schema = 'public' AND table_name = 'push_subscriptions' 
+        AND column_name NOT IN ('id', 'user_id', 'endpoint', 'keys', 'icon_url', 'created_at')
+    LOOP
+        EXECUTE 'ALTER TABLE public.push_subscriptions DROP COLUMN ' || col_rec.column_name;
+    END LOOP;
+END $$;
+

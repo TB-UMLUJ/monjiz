@@ -1,3 +1,4 @@
+
 import webpush from 'web-push';
 import { createClient } from '@supabase/supabase-js';
 
@@ -21,7 +22,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 // Setup Web Push
 webpush.setVapidDetails(
-  'mailto:admin@monjez.app',
+  'mailto:admin@mowaamah.app',
   publicVapidKey,
   privateVapidKey
 );
@@ -42,7 +43,7 @@ async function sendNotifications() {
 
     const payload = JSON.stringify({
         title: "تنبيه جديد 🚀",
-        body: "وصلتك رسالة من Monjez عبر Supabase",
+        body: "وصلتك رسالة من Mowaamah عبر Supabase",
         icon: "https://cdn-icons-png.flaticon.com/512/2382/2382461.png"
     });
 

@@ -1,3 +1,4 @@
+
 import webpush from 'web-push';
 import { createClient } from '@supabase/supabase-js';
 
@@ -12,7 +13,7 @@ const privateVapidKey = '4FjoA3TKr72-NIPwVPjcfH-QeoJUrqocCLWcLzEGBfw';
 
 // Initialize Web Push
 webpush.setVapidDetails(
-  'mailto:admin@monjez.app',
+  'mailto:admin@mowaamah.app',
   publicVapidKey,
   privateVapidKey
 );

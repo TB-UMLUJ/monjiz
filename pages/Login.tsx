@@ -1,9 +1,8 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { authService } from '../services/auth';
 import { storageService } from '../services/storage';
-import { Lock, ArrowLeft, ShieldCheck, Loader2, Wallet } from 'lucide-react';
+import { Lock, ArrowLeft, ShieldCheck, Loader2, Wallet, Moon, Sun } from 'lucide-react';
 
 interface LoginProps {
   onLoginSuccess: () => void;
@@ -14,10 +13,10 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string>("");
+  const [isDark, setIsDark] = useState(false);
 
   useEffect(() => {
-    // Attempt to fetch settings (including logo) even before login
-    // Since the app uses a fixed DEFAULT_USER_ID, we can fetch public settings
+    // Attempt to fetch settings (including logo)
     const fetchLogo = async () => {
         try {
             const settings = await storageService.getSettings();
@@ -25,11 +24,26 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 setLogoUrl(settings.appLogo);
             }
         } catch (e) {
-            // Ignore error if fetch fails
+            // Ignore error
         }
     };
     fetchLogo();
+
+    // Check initial theme
+    if (document.documentElement.classList.contains('dark')) {
+      setIsDark(true);
+    }
   }, []);
+
+  const toggleTheme = () => {
+    if (isDark) {
+      document.documentElement.classList.remove('dark');
+      setIsDark(false);
+    } else {
+      document.documentElement.classList.add('dark');
+      setIsDark(true);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,7 +55,6 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         if (isValid) {
           onLoginSuccess();
         } else {
-          // This is now only for incorrect password
           setError('كلمة المرور غير صحيحة. يرجى المحاولة مرة أخرى.');
         }
     } catch (e) {
@@ -70,6 +83,14 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   return (
     <div className="min-h-screen relative flex items-center justify-center p-4 font-tajawal overflow-hidden transition-colors bg-ghost-white dark:bg-[#020617]" dir="rtl">
       
+      {/* Theme Toggle Button */}
+      <button 
+        onClick={toggleTheme}
+        className="absolute top-6 left-6 w-10 h-10 rounded-full bg-white dark:bg-slate-800 shadow-md flex items-center justify-center text-slate-600 dark:text-yellow-400 z-50 hover:scale-105 transition-transform"
+      >
+        {isDark ? <Sun size={20} /> : <Moon size={20} />}
+      </button>
+
       {/* Background Ambience (Light Mode) */}
       <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] rounded-full bg-emerald-200/40 blur-[120px] dark:hidden pointer-events-none" />
       <div className="absolute bottom-[-10%] left-[-5%] w-[500px] h-[500px] rounded-full bg-blue-200/40 blur-[120px] dark:hidden pointer-events-none" />
@@ -89,18 +110,18 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                  <img 
                    src={logoUrl} 
                    alt="Logo" 
-                   className="h-28 w-auto object-contain relative z-10 drop-shadow-sm" 
+                   className="h-20 w-auto object-contain relative z-10 drop-shadow-sm" 
                  />
                  </>
              ) : (
                  <div className="relative z-10 flex flex-col items-center justify-center">
-                     <div className="w-24 h-24 bg-gradient-to-br from-eerie-black to-slate-800 dark:from-[#bef264] dark:to-emerald-400 rounded-3xl flex items-center justify-center shadow-2xl mb-4">
+                     <div className="w-24 h-24 bg-gradient-to-br from-emerald-600 to-emerald-400 dark:from-[#bef264] dark:to-emerald-400 rounded-3xl flex items-center justify-center shadow-2xl mb-4">
                         <Wallet size={48} className="text-white dark:text-slate-900" />
                      </div>
                  </div>
              )}
           </div>
-          <h1 className="text-3xl font-bold text-eerie-black dark:text-white mb-2 tracking-tight">مرحباً بعودتك</h1>
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2 tracking-tight">مرحباً بعودتك</h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm">
              سجل دخولك لمتابعة محفظتك المالية
           </p>
@@ -110,7 +131,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           <div className="animate-slide-up" style={{animationDelay: '0.1s'}}>
             <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-2 mr-1">كلمة المرور</label>
             <div className="relative group">
-               <div className="absolute right-4 top-4 text-slate-400 group-focus-within:text-emerald-500 dark:group-focus-within:text-[#bef264] transition-colors z-10">
+               {/* Icon moved to LEFT */}
+               <div className="absolute left-4 top-4 text-slate-400 group-focus-within:text-emerald-500 dark:group-focus-within:text-[#bef264] transition-colors z-10">
                  <Lock size={20} />
               </div>
               <input
@@ -120,7 +142,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                   setPassword(e.target.value);
                   setError('');
                 }}
-                className="w-full pr-12 pl-4 py-4 bg-slate-50 dark:bg-black/40 border-2 border-slate-100 dark:border-slate-800 rounded-2xl focus:border-emerald-500 dark:focus:border-[#bef264] outline-none transition-all text-right text-slate-900 dark:text-white placeholder:text-slate-400 font-bold tracking-widest text-lg shadow-inner"
+                className="w-full pl-12 pr-4 py-4 bg-slate-50 dark:bg-black/40 border-2 border-slate-100 dark:border-slate-800 rounded-2xl focus:border-emerald-500 dark:focus:border-[#bef264] outline-none transition-all text-right text-slate-900 dark:text-white placeholder:text-slate-400 font-bold tracking-widest text-lg shadow-inner"
                 placeholder="••••••"
               />
             </div>
@@ -135,7 +157,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-eerie-black dark:bg-[#bef264] text-white dark:text-slate-950 py-4 rounded-2xl font-bold text-lg hover:bg-black dark:hover:bg-[#a3e635] hover:shadow-lg hover:-translate-y-1 transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:hover:translate-y-0 disabled:hover:shadow-none animate-slide-up shadow-xl shadow-slate-200 dark:shadow-none" style={{animationDelay: '0.2s'}}
+            className="w-full bg-emerald-600 dark:bg-[#bef264] text-white dark:text-slate-950 py-4 rounded-2xl font-bold text-lg hover:bg-emerald-700 dark:hover:bg-[#a3e635] hover:shadow-lg hover:-translate-y-1 transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:hover:translate-y-0 disabled:hover:shadow-none animate-slide-up shadow-xl shadow-emerald-200 dark:shadow-none" style={{animationDelay: '0.2s'}}
           >
             {isLoading ? <Loader2 className="animate-spin" /> : (
               <>
@@ -147,7 +169,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         </form>
         
         <div className="mt-10 pt-6 border-t border-slate-100 dark:border-slate-800/50 text-center animate-fade-in" style={{animationDelay: '0.3s'}}>
-           <p className="text-xs font-medium text-slate-400 dark:text-slate-600">نظام منجز المالي © 2025</p>
+           <p className="text-xs font-medium text-slate-400 dark:text-slate-600">نظام مواءمة المالي © 2025</p>
         </div>
       </div>
     </div>

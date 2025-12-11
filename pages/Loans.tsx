@@ -148,6 +148,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
       renewalDate: string;
       customSchedule?: BillScheduleItem[]; // New: For custom bill schedule
       icon: string; // New: To store auto-detected or manually set icon
+      description: string; // New: Description field
   }>({
       provider: '',
       type: 'electricity',
@@ -164,7 +165,8 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
       isSubscription: false,
       renewalDate: '',
       customSchedule: undefined,
-      icon: ''
+      icon: '',
+      description: ''
   });
 
   // Clear selections when closing modals
@@ -517,6 +519,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
               renewalDate: newBill.renewalDate,
               status: 'active',
               icon: newBill.icon, // Save detected icon
+              description: newBill.description,
               paidDates: [],
               customSchedule: newBill.customSchedule
           };
@@ -596,7 +599,8 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
           isSubscription: bill.isSubscription || false,
           renewalDate: bill.renewalDate || '',
           customSchedule: bill.customSchedule,
-          icon: bill.icon || ''
+          icon: bill.icon || '',
+          description: bill.description || ''
       });
       setShowAddBillModal(true);
       if (selectedBill) setSelectedBill(null);
@@ -1061,7 +1065,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
       {activeTab === 'loans' ? (
       <>
           <div className="flex justify-end gap-2 mb-4">
-                <button onClick={() => setShowSmartModal(true)} className="flex items-center justify-center gap-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-3 py-2 rounded-lg text-sm font-bold shadow-lg"><Wand2 size={16}/><span>استيراد ذكي</span></button>
+                <button onClick={() => setShowSmartModal(true)} className="flex items-center justify-center gap-2 bg-emerald-600 dark:bg-emerald-600 text-white dark:text-white px-3 py-2 rounded-lg text-sm font-bold shadow-lg"><Wand2 size={16}/><span>استيراد ذكي</span></button>
                 <button onClick={() => { setShowAddModal(true); setIsEditing(false); setEditingLoanId(null); setNewLoan({ name: '', description: '', amount: '', rate: '', duration: '', startDate: new Date().toISOString().split('T')[0], type: LoanType.DECREASING, contractPdf: '', initialPaidAmount: '', customMonthlyPayment: '', lastPaymentAmount: '', icon: '' }); setManualSchedule([]); }} className="flex items-center justify-center gap-2 bg-emerald-600 text-white px-3 py-2 rounded-lg text-sm font-bold shadow-lg"><Plus size={16}/><span>إضافة قرض</span></button>
             </div>
             
@@ -1156,7 +1160,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
       ) : (
       <div className="space-y-6">
           <div className="flex justify-end mb-4">
-              <button onClick={() => { setShowAddBillModal(true); setEditingBillId(null); setNewBill({ provider: '', type: 'electricity', amount: '', hasEndDate: false, endDate: '', deviceDetails: '', startDate: '', duration: '', lastAmount: '', downPayment: '', totalDebt: '', endDateMode: 'months', isSubscription: false, renewalDate: '', customSchedule: undefined, icon: '' }); }} className="flex items-center justify-center gap-2 bg-emerald-600 text-white px-3 py-2 rounded-lg text-sm font-bold shadow-lg"><Plus size={16}/><span>إضافة جديد</span></button>
+              <button onClick={() => { setShowAddBillModal(true); setEditingBillId(null); setNewBill({ provider: '', type: 'electricity', amount: '', hasEndDate: false, endDate: '', deviceDetails: '', startDate: '', duration: '', lastAmount: '', downPayment: '', totalDebt: '', endDateMode: 'months', isSubscription: false, renewalDate: '', customSchedule: undefined, icon: '', description: '' }); }} className="flex items-center justify-center gap-2 bg-emerald-600 text-white px-3 py-2 rounded-lg text-sm font-bold shadow-lg"><Plus size={16}/><span>إضافة جديد</span></button>
           </div>
           
           {activeTab === 'subscriptions' && (
@@ -1283,7 +1287,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                                   <h3 className="font-bold text-lg text-slate-800 dark:text-white truncate">{bill.name}</h3>
                                   <span className={`text-[10px] px-2 py-1 rounded-full ${statusColor}`}>{statusLabel}</span>
                               </div>
-                              <p className="text-xs text-slate-400 truncate">{bill.provider}</p>
+                              <p className="text-xs text-slate-400 truncate">{bill.description || bill.provider}</p>
                           </div>
                       </div>
 
@@ -1470,7 +1474,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                                                 ) : (
                                                     <button 
                                                         onClick={() => initiatePayment('loan', selectedLoan, item, item.paymentAmount, new Date(item.paymentDate).toLocaleDateString('en-GB'))}
-                                                        className="bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 px-3 py-1 rounded-lg text-xs font-bold hover:opacity-90"
+                                                        className="bg-emerald-600 text-white dark:bg-emerald-600 dark:text-white px-3 py-1 rounded-lg text-xs font-bold hover:opacity-90"
                                                     >
                                                         سداد
                                                     </button>
@@ -1512,6 +1516,12 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                          </div>
                          <button onClick={() => setSelectedBill(null)} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors text-slate-500"><X size={24}/></button>
                     </div>
+
+                    {selectedBill.description && (
+                        <div className="text-sm bg-indigo-50 dark:bg-indigo-900/20 p-3 rounded-lg border border-indigo-100 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300">
+                             <strong>ملاحظات:</strong> {selectedBill.description}
+                        </div>
+                    )}
                     
                     <div className="flex flex-wrap gap-2">
                          {activeTab !== 'archive' && <button onClick={(e) => {handleArchiveBill(e, selectedBill); setSelectedBill(null);}} className="bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-1"><Archive size={14}/> أرشفة</button>}
@@ -1612,7 +1622,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                                                 ) : (
                                                     <button 
                                                         onClick={() => initiatePayment('bill', selectedBill, item, item.amount, new Date(item.date).toLocaleDateString('en-GB'))}
-                                                        className="bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 px-3 py-1 rounded-lg text-xs font-bold hover:opacity-90"
+                                                        className="bg-emerald-600 text-white dark:bg-emerald-600 dark:text-white px-3 py-1 rounded-lg text-xs font-bold hover:opacity-90"
                                                     >
                                                         سداد
                                                     </button>
@@ -1694,6 +1704,17 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                                         </div>
                                     )}
                                 </div>
+                          </div>
+
+                          <div className="col-span-2">
+                                <label className="block text-xs font-bold text-slate-500 mb-1">ملاحظات / تفاصيل (اختياري)</label>
+                                <input 
+                                    type="text" 
+                                    className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border-none outline-none dark:text-white" 
+                                    placeholder="مثال: فاتورة المنزل القديم، رسوم اشتراك..."
+                                    value={newBill.description}
+                                    onChange={e => setNewBill({...newBill, description: e.target.value})}
+                                />
                           </div>
                           
                           {/* Device Installment Specifics */}
@@ -1833,7 +1854,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                           )}
                       </div>
 
-                      <button type="submit" disabled={isProcessing} className="w-full bg-slate-900 dark:bg-[#bef264] text-white dark:text-slate-900 py-4 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2">
+                      <button type="submit" disabled={isProcessing} className="w-full bg-emerald-600 dark:bg-[#bef264] text-white dark:text-slate-900 py-4 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2">
                           {isProcessing ? <Loader2 className="animate-spin" /> : <Save size={18} />}
                           {editingBillId ? 'تحديث الفاتورة' : 'حفظ الفاتورة'}
                       </button>
@@ -1925,7 +1946,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                 <form onSubmit={handleAddLoan} className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="col-span-2">
-                             <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">جهة التمويل</label>
+                             <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">جهة التمويل (اسم البنك)</label>
                              <div className="relative">
                                 <input 
                                     type="text" required 
@@ -1939,6 +1960,17 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                                     {SAUDI_LENDERS.map(l => <option key={l} value={l} />)}
                                 </datalist>
                              </div>
+                        </div>
+
+                        <div className="col-span-2">
+                            <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5">الغرض من القرض / التفاصيل</label>
+                            <input 
+                                type="text" 
+                                className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border-none focus:ring-2 focus:ring-emerald-500 outline-none text-slate-900 dark:text-white"
+                                placeholder="مثال: ترميم منزل، شراء سيارة، تمويل شخصي..."
+                                value={newLoan.description}
+                                onChange={e => setNewLoan({...newLoan, description: e.target.value})}
+                            />
                         </div>
 
                         <div>
@@ -2013,7 +2045,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                                  {isDeleting ? <Loader2 className="animate-spin"/> : <Trash2 size={20}/>}
                              </button>
                          )}
-                        <button type="submit" disabled={isProcessing} className="flex-1 bg-slate-900 dark:bg-[#bef264] text-white dark:text-slate-900 py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2">
+                        <button type="submit" disabled={isProcessing} className="flex-1 bg-emerald-600 dark:bg-[#bef264] text-white dark:text-slate-900 py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2">
                             {isProcessing ? <Loader2 className="animate-spin" /> : <Save size={18}/>}
                             {isEditing ? 'حفظ التغييرات' : 'إضافة القرض'}
                         </button>
@@ -2059,7 +2091,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
 
                  <div className="flex gap-3">
                      <button onClick={() => setPaymentModal({...paymentModal, isOpen: false})} className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl font-bold">إلغاء</button>
-                     <button onClick={confirmPayment} disabled={isProcessing} className="flex-1 py-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl font-bold flex justify-center items-center gap-2">
+                     <button onClick={confirmPayment} disabled={isProcessing} className="flex-1 py-3 bg-emerald-600 dark:bg-white text-white dark:text-slate-900 rounded-xl font-bold flex justify-center items-center gap-2">
                          {isProcessing && <Loader2 className="animate-spin" size={16}/>}
                          {paymentModal.type === 'refund' ? 'تأكيد التراجع' : 'تأكيد السداد'}
                      </button>
@@ -2110,7 +2142,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                      <button 
                          onClick={handleSmartImport}
                          disabled={isParsing || (!smartText && !newLoan.contractPdf)}
-                         className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold shadow-lg hover:bg-indigo-700 transition-colors disabled:opacity-70 flex items-center justify-center gap-2"
+                         className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold shadow-lg hover:bg-emerald-700 transition-colors disabled:opacity-70 flex items-center justify-center gap-2"
                      >
                          {isParsing ? <Loader2 className="animate-spin"/> : <Wand2 size={18}/>}
                          {isParsing ? 'جاري التحليل...' : 'تحليل واستخراج البيانات'}

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { UserSettings, IncomeSource, BankCard, LogoPosition, EntityLogo, Allowance, ReportConfig, Transaction, Loan, Bill, FinancialGoal } from '../types';
 import { storageService } from '../services/storage';
@@ -39,7 +40,7 @@ const SettingsItem: React.FC<{ icon: React.ReactNode; text: string; onClick?: ()
 );
 
 const SubViewContainer: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 animate-fade-in">
+  <div className="bg-white dark:bg-slate-900 p-4 md:p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 animate-fade-in">
     {children}
   </div>
 );
@@ -187,10 +188,28 @@ const IncomeSettings = ({ formData, setFormData }: { formData: UserSettings, set
                         </div>
                         <div className="space-y-2">
                             {currentIncome.allowances?.map((allowance) => (
-                                <div key={allowance.id} className="flex gap-2">
-                                    <input type="text" placeholder="نوع البدل" value={allowance.name} onChange={e => updateAllowance(allowance.id, 'name', e.target.value)} className="flex-[2] p-2 rounded-lg bg-slate-50 dark:bg-slate-800 text-sm outline-none"/>
-                                    <input type="number" placeholder="المبلغ" value={allowance.amount} onChange={e => updateAllowance(allowance.id, 'amount', Number(e.target.value))} className="flex-1 p-2 rounded-lg bg-slate-50 dark:bg-slate-800 text-sm outline-none font-bold text-emerald-600"/>
-                                    <button type="button" onClick={() => removeAllowance(allowance.id)} className="text-rose-400"><X size={16}/></button>
+                                <div key={allowance.id} className="flex items-center gap-2">
+                                    <input 
+                                        type="text" 
+                                        placeholder="نوع البدل" 
+                                        value={allowance.name} 
+                                        onChange={e => updateAllowance(allowance.id, 'name', e.target.value)} 
+                                        className="flex-[2] min-w-0 p-2 rounded-lg bg-slate-50 dark:bg-slate-800 text-sm outline-none border border-transparent focus:border-indigo-500 transition-all"
+                                    />
+                                    <input 
+                                        type="number" 
+                                        placeholder="المبلغ" 
+                                        value={allowance.amount} 
+                                        onChange={e => updateAllowance(allowance.id, 'amount', Number(e.target.value))} 
+                                        className="flex-1 min-w-0 p-2 rounded-lg bg-slate-50 dark:bg-slate-800 text-sm outline-none font-bold text-emerald-600 border border-transparent focus:border-emerald-500 transition-all"
+                                    />
+                                    <button 
+                                        type="button" 
+                                        onClick={() => removeAllowance(allowance.id)} 
+                                        className="p-2 text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg shrink-0 transition-colors"
+                                    >
+                                        <X size={18}/>
+                                    </button>
                                 </div>
                             ))}
                         </div>

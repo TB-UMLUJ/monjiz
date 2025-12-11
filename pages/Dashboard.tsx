@@ -394,9 +394,9 @@ const Dashboard: React.FC<DashboardProps> = ({
           <button 
              onClick={handleAiConsult}
              disabled={isLoadingAi}
-             className="flex items-center justify-center gap-2 bg-eerie-black dark:bg-[#bef264] text-white dark:text-slate-900 px-5 py-3 rounded-xl hover:bg-black dark:hover:bg-[#a3e635] transition-all shadow-lg shadow-slate-900/10 disabled:opacity-70 font-bold w-full md:w-auto"
+             className="flex items-center justify-center gap-2 bg-emerald-600 dark:bg-[#bef264] text-white dark:text-slate-900 px-5 py-3 rounded-xl hover:bg-emerald-700 dark:hover:bg-[#a3e635] transition-all shadow-lg shadow-emerald-600/20 disabled:opacity-70 font-bold w-full md:w-auto"
           >
-             <Sparkles size={18} className={isLoadingAi ? "animate-spin" : "text-vanila dark:text-slate-900"} />
+             <Sparkles size={18} className={isLoadingAi ? "animate-spin" : "text-emerald-100 dark:text-slate-900"} />
              <span>{isLoadingAi ? 'جاري التحليل...' : 'تحليل مالي'}</span>
           </button>
         </div>
@@ -429,7 +429,9 @@ const Dashboard: React.FC<DashboardProps> = ({
                       <div>
                           <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-1 flex items-center gap-2">
                              نقاط الصحة المالية
-                             <Info size={14} className="text-slate-400 cursor-help" title="تقييم يعتمد على نسبة الديون والادخار" />
+                             <span title="تقييم يعتمد على نسبة الديون والادخار" className="cursor-help flex items-center">
+                               <Info size={14} className="text-slate-400" />
+                             </span>
                           </h4>
                           <div className="flex items-baseline gap-2 mt-1">
                               <span className={`text-3xl font-bold ${healthConfig.colorClass}`}>{healthScore}/100</span>
@@ -641,7 +643,7 @@ const Dashboard: React.FC<DashboardProps> = ({
            {/* Action Buttons */}
            <div className="flex gap-3 mb-4">
                 <button onClick={() => openModal('transfer')} className="flex-1 bg-white dark:bg-slate-800 text-eerie-black dark:text-white py-3 rounded-xl font-bold text-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-2 shadow-sm border border-slate-100 dark:border-slate-800">
-                    <Send size={16} className="text-[#bef264]" /> تحويل
+                    <Send size={16} className="text-emerald-600" /> تحويل
                 </button>
                 <button onClick={() => openModal('receive')} className="flex-1 bg-white dark:bg-slate-800 text-eerie-black dark:text-white py-3 rounded-xl font-bold text-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-2 shadow-sm border border-slate-100 dark:border-slate-800">
                     <Download size={16} className="text-emerald-500" /> استلام
