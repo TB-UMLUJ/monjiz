@@ -40,6 +40,61 @@ const DEFAULT_SETTINGS: UserSettings = {
 };
 
 export const storageService = {
+  // --- Data Management (Import/Export/Wipe) ---
+  dangerouslyWipeAllData: async (): Promise<void> => {
+    // Delete in order of dependency to avoid foreign key constraints
+    await supabase.from('transactions').delete().eq('user_id', DEFAULT_USER_ID);
+    // loan_schedule is deleted by cascade on loan deletion
+    await supabase.from('loans').delete().eq('user_id', DEFAULT_USER_ID);
+    await supabase.from('bills').delete().eq('user_id', DEFAULT_USER_ID);
+    await supabase.from('financial_goals').delete().eq('user_id', DEFAULT_USER_ID);
+    await supabase.from('recurring_transactions').delete().eq('user_id', DEFAULT_USER_ID);
+    await supabase.from('custom_categories').delete().eq('user_id', DEFAULT_USER_ID);
+    await supabase.from('income_sources').delete().eq('user_id', DEFAULT_USER_ID);
+    await supabase.from('bank_cards').delete().eq('user_id', DEFAULT_USER_ID);
+    await supabase.from('settings').delete().eq('user_id', DEFAULT_USER_ID);
+  },
+
+  importData: async (data: any): Promise<void> => {
+    // This function ADDS data, it does not wipe. This can create duplicates but is safe.
+    // The user should wipe first if they want a clean import.
+    
+    // 1. Settings are special: we update them using saveSettings for its sync logic
+    if (data.settings) {
+        // saveSettings is designed to handle updates and syncing of sub-tables like cards
+        await storageService.saveSettings(data.settings);
+    }
+    
+    // 2. Add other items (strip IDs to let DB generate new ones)
+    if (data.loans) {
+        for (const loan of data.loans) {
+            const { id, ...loanData } = loan;
+            await storageService.saveLoan(loanData);
+        }
+    }
+    if (data.bills) {
+        for (const bill of data.bills) {
+            const { id, ...billData } = bill;
+            await storageService.saveBill(billData);
+        }
+    }
+    if (data.goals) {
+        for (const goal of data.goals) {
+            const { id, ...goalData } = goal;
+            await storageService.saveGoal(goalData);
+        }
+    }
+    // For transactions, cardId links might break if cards are not imported first with
+    // the same IDs, which is not guaranteed. The safety check in saveTransaction will set
+    // card_id to null if the ID is not found, which is acceptable behavior for import.
+    if (data.transactions) {
+        for (const tx of data.transactions) {
+            const { id, ...txData } = tx;
+            await storageService.saveTransaction(txData);
+        }
+    }
+  },
+
   // --- Transactions ---
   getTransactions: async (): Promise<Transaction[]> => {
     const { data, error } = await supabase

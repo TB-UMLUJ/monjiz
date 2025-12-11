@@ -22,7 +22,8 @@ import {
   ShieldCheck,
   BarChart3,
   CreditCard,
-  MoreHorizontal
+  MoreHorizontal,
+  Info
 } from 'lucide-react';
 import { getFinancialAdvice, parseTransactionFromSMS } from '../services/geminiService';
 import { storageService } from '../services/storage';
@@ -82,13 +83,48 @@ const Dashboard: React.FC<DashboardProps> = ({
   // New Features Calculations
   const totalDebt = loans.reduce((acc, curr) => acc + curr.schedule.filter(s => !s.isPaid).reduce((sum, s) => sum + s.remainingBalance, 0), 0);
   
-  // Financial Health Score
+  // Financial Health Score Calculation
   const incomeDebtRatio = totalRealizedIncome > 0 ? (totalDebt / (totalRealizedIncome * 12)) : 1; 
   const savingsRate = totalRealizedIncome > 0 ? savings / totalRealizedIncome : 0;
   let healthScore = 50; // Base
   healthScore += savingsRate * 100; // Add up to 20-30 points
   healthScore -= Math.min(incomeDebtRatio * 10, 40); // Deduct for high debt
   healthScore = Math.min(Math.max(Math.round(healthScore), 0), 100);
+
+  // Financial Health Score Logic (Label & Color)
+  let healthConfig = { 
+      label: 'متوسط', 
+      advice: 'راجع التزاماتك', 
+      colorClass: 'text-amber-600 dark:text-amber-400', 
+      bgClass: 'bg-amber-100 dark:bg-amber-900/20',
+      ringColor: 'border-amber-500'
+  };
+
+  if (healthScore >= 80) {
+      healthConfig = { 
+          label: 'ممتاز', 
+          advice: 'استمر في الاستثمار والادخار', 
+          colorClass: 'text-teal-600 dark:text-teal-400', 
+          bgClass: 'bg-teal-100 dark:bg-teal-900/20',
+          ringColor: 'border-teal-500'
+      };
+  } else if (healthScore >= 60) {
+      healthConfig = { 
+          label: 'جيد جداً', 
+          advice: 'وضعك مستقر، حاول زيادة الادخار', 
+          colorClass: 'text-blue-600 dark:text-blue-400', 
+          bgClass: 'bg-blue-100 dark:bg-blue-900/20',
+          ringColor: 'border-blue-500'
+      };
+  } else if (healthScore < 40) {
+      healthConfig = { 
+          label: 'يحتاج انتباه', 
+          advice: 'المصروفات مرتفعة، قلل النفقات', 
+          colorClass: 'text-orange-600 dark:text-orange-400', 
+          bgClass: 'bg-orange-100 dark:bg-orange-900/20',
+          ringColor: 'border-orange-500'
+      };
+  }
 
   // Safe-to-Spend (Updated to sum of all card balances)
   const safeToSpend = settings.cards.reduce((acc, card) => acc + (card.balance || 0), 0);
@@ -152,7 +188,8 @@ const Dashboard: React.FC<DashboardProps> = ({
     }));
   }, [transactions]);
 
-  const COLORS = ['#10b981', '#bef264', '#0f172a', '#64748b', '#cbd5e1'];
+  // Accessible Palette (Teal, Orange, Blue, Purple)
+  const COLORS = ['#0d9488', '#f97316', '#3b82f6', '#8b5cf6', '#64748b'];
 
   const handleAiConsult = async () => {
     setIsLoadingAi(true);
@@ -386,18 +423,31 @@ const Dashboard: React.FC<DashboardProps> = ({
           
           {/* New Financial Health & Safe-to-Spend Row */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Financial Health - Pastel Peach */}
-              <div className="bg-[#FFE8D6] dark:bg-slate-900 p-6 rounded-[2.5rem] shadow-sm border-none flex items-center justify-between hover:scale-[1.02] transition-transform duration-300">
-                  <div>
-                      <h4 className="text-sm font-bold text-slate-800 dark:text-slate-400 mb-1">نقاط الصحة المالية</h4>
-                      <div className="flex items-center gap-2">
-                          <Activity className={healthScore > 70 ? 'text-emerald-600' : 'text-amber-600'} />
-                          <span className={`text-3xl font-bold ${healthScore > 70 ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}`}>{healthScore}/100</span>
+              {/* Financial Health - Enhanced UI */}
+              <div className={`p-6 rounded-[2.5rem] shadow-sm border-none flex flex-col justify-between hover:scale-[1.02] transition-transform duration-300 relative overflow-hidden ${healthConfig.bgClass}`}>
+                  <div className="flex justify-between items-start z-10">
+                      <div>
+                          <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-1 flex items-center gap-2">
+                             نقاط الصحة المالية
+                             <Info size={14} className="text-slate-400 cursor-help" title="تقييم يعتمد على نسبة الديون والادخار" />
+                          </h4>
+                          <div className="flex items-baseline gap-2 mt-1">
+                              <span className={`text-3xl font-bold ${healthConfig.colorClass}`}>{healthScore}/100</span>
+                              <span className={`text-sm font-bold px-2 py-0.5 rounded-full bg-white/50 dark:bg-black/20 ${healthConfig.colorClass}`}>
+                                  {healthConfig.label}
+                              </span>
+                          </div>
+                          <p className="text-xs text-slate-600 dark:text-slate-400 mt-2 font-medium bg-white/40 dark:bg-black/10 p-2 rounded-lg inline-block">
+                             💡 {healthConfig.advice}
+                          </p>
                       </div>
-                  </div>
-                  <div className="w-16 h-16 rounded-full border-4 border-white/50 dark:border-slate-800 flex items-center justify-center relative">
-                      <div className={`absolute inset-0 rounded-full border-4 ${healthScore > 70 ? 'border-emerald-500' : 'border-amber-500'}`} style={{clipPath: `inset(0 0 ${100 - healthScore}% 0)`}}></div>
-                      <span className="text-xs font-bold text-slate-600 dark:text-slate-300">{healthScore}%</span>
+                      
+                      <div className="relative w-16 h-16 flex items-center justify-center">
+                          {/* Circular Progress Placeholder */}
+                          <div className={`absolute inset-0 rounded-full border-4 opacity-20 ${healthConfig.ringColor.replace('border-', 'border-')}`}></div>
+                          <div className={`absolute inset-0 rounded-full border-4 border-t-transparent ${healthConfig.ringColor} rotate-45`}></div>
+                          <Activity className={healthConfig.colorClass} size={24} />
+                      </div>
                   </div>
               </div>
 
@@ -408,51 +458,51 @@ const Dashboard: React.FC<DashboardProps> = ({
                       <p className="text-xs text-slate-500 mb-2">إجمالي أرصدة البطاقات</p>
                       <h3 className="text-3xl font-bold text-eerie-black dark:text-white sensitive-data">{safeToSpend.toLocaleString('en-US')} {settings.currency}</h3>
                   </div>
-                  <div className="p-3 bg-white dark:bg-slate-800 rounded-full text-slate-700 dark:text-white">
+                  <div className="p-3 bg-white dark:bg-slate-800 rounded-full text-slate-700 dark:text-white shadow-sm">
                       <ShieldCheck size={28} />
                   </div>
               </div>
           </div>
 
-          {/* Stats Grid */}
+          {/* Stats Grid - Updated Colors */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
-             {/* Income - Pastel Mint (Partners style) */}
-             <div className="bg-[#D1FAE5] dark:bg-slate-900 p-6 rounded-[2.5rem] shadow-sm flex items-center justify-between group cursor-pointer hover:scale-[1.02] transition-transform duration-300 border-none dark:border dark:border-slate-800" onClick={() => onNavigate('transactions')}>
+             {/* Income - Teal Scheme */}
+             <div className="bg-[#ccfbf1] dark:bg-slate-900 p-6 rounded-[2.5rem] shadow-sm flex items-center justify-between group cursor-pointer hover:scale-[1.02] transition-transform duration-300 border-none dark:border dark:border-slate-800" onClick={() => onNavigate('transactions')}>
                 <div>
-                   <div className="flex items-center gap-2 text-emerald-800 dark:text-slate-400 mb-2">
+                   <div className="flex items-center gap-2 text-teal-800 dark:text-slate-400 mb-2">
                       <div className="p-2 bg-white/60 dark:bg-slate-800 rounded-full">
-                        <Wallet size={18} className="text-emerald-700 dark:text-white" />
+                        <Wallet size={18} className="text-teal-600 dark:text-white" />
                       </div>
                       <span className="font-bold text-sm">الدخل</span>
                    </div>
-                   <h3 className="text-2xl font-bold text-emerald-900 dark:text-white sensitive-data">{totalRealizedIncome.toLocaleString('en-US')} {settings.currency}</h3>
+                   <h3 className="text-2xl font-bold text-teal-900 dark:text-white sensitive-data">{totalRealizedIncome.toLocaleString('en-US')} {settings.currency}</h3>
                 </div>
                 <div className="flex flex-col items-end">
-                   <span className="bg-white/60 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-400 text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1">
+                   <span className="bg-white/60 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1">
                       <ArrowUpRight size={14} />
                       1.78%
                    </span>
-                   <span className="text-xs text-emerald-700/70 dark:text-slate-400 mt-1">عن الشهر الماضي</span>
+                   <span className="text-xs text-teal-700/70 dark:text-slate-400 mt-1">عن الشهر الماضي</span>
                 </div>
              </div>
 
-             {/* Expense - Pastel Lavender (Scouts style) */}
-             <div className="bg-[#E9D5FF] dark:bg-slate-900 p-6 rounded-[2.5rem] shadow-sm flex items-center justify-between group cursor-pointer hover:scale-[1.02] transition-transform duration-300 border-none dark:border dark:border-slate-800" onClick={() => onNavigate('transactions')}>
+             {/* Expense - Orange Scheme (Neutral Warning) */}
+             <div className="bg-[#ffedd5] dark:bg-slate-900 p-6 rounded-[2.5rem] shadow-sm flex items-center justify-between group cursor-pointer hover:scale-[1.02] transition-transform duration-300 border-none dark:border dark:border-slate-800" onClick={() => onNavigate('transactions')}>
                 <div>
-                   <div className="flex items-center gap-2 text-purple-800 dark:text-slate-400 mb-2">
+                   <div className="flex items-center gap-2 text-orange-800 dark:text-slate-400 mb-2">
                       <div className="p-2 bg-white/60 dark:bg-slate-800 rounded-full">
-                        <ArrowDownLeft size={18} className="text-purple-700 dark:text-white" />
+                        <ArrowDownLeft size={18} className="text-orange-600 dark:text-white" />
                       </div>
                       <span className="font-bold text-sm">المصروفات</span>
                    </div>
-                   <h3 className="text-2xl font-bold text-purple-900 dark:text-white sensitive-data">{totalExpense.toLocaleString('en-US')} {settings.currency}</h3>
+                   <h3 className="text-2xl font-bold text-orange-900 dark:text-white sensitive-data">{totalExpense.toLocaleString('en-US')} {settings.currency}</h3>
                 </div>
                 <div className="flex flex-col items-end">
-                   <span className="bg-white/60 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400 text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1">
+                   <span className="bg-white/60 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1">
                       <ArrowUpRight size={14} />
                       2.45%
                    </span>
-                   <span className="text-xs text-purple-700/70 dark:text-slate-400 mt-1">عن الشهر الماضي</span>
+                   <span className="text-xs text-orange-700/70 dark:text-slate-400 mt-1">عن الشهر الماضي</span>
                 </div>
              </div>
           </div>
@@ -462,7 +512,7 @@ const Dashboard: React.FC<DashboardProps> = ({
              <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-8 gap-4">
                 <div>
                    <h3 className="text-xl font-bold text-eerie-black dark:text-white">التدفق النقدي</h3>
-                   <p className="text-sm text-slate-400">إجمالي الرصيد <span className="text-emerald-500 font-bold sensitive-data">{balance.toLocaleString('en-US')} {settings.currency}</span></p>
+                   <p className="text-sm text-slate-400">إجمالي الرصيد <span className="text-teal-500 font-bold sensitive-data">{balance.toLocaleString('en-US')} {settings.currency}</span></p>
                 </div>
              </div>
              
@@ -471,12 +521,12 @@ const Dashboard: React.FC<DashboardProps> = ({
                    <AreaChart data={chartData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
                       <defs>
                         <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#bef264" stopOpacity={0.4}/>
-                          <stop offset="95%" stopColor="#bef264" stopOpacity={0}/>
+                          <stop offset="5%" stopColor="#0d9488" stopOpacity={0.4}/>
+                          <stop offset="95%" stopColor="#0d9488" stopOpacity={0}/>
                         </linearGradient>
                         <linearGradient id="colorExpense" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#0f172a" stopOpacity={0.2}/>
-                          <stop offset="95%" stopColor="#0f172a" stopOpacity={0}/>
+                          <stop offset="5%" stopColor="#f97316" stopOpacity={0.2}/>
+                          <stop offset="95%" stopColor="#f97316" stopOpacity={0}/>
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" strokeOpacity={0.1} />
@@ -485,8 +535,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                       <Tooltip 
                         contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', backgroundColor: 'rgba(255, 255, 255, 0.9)' }}
                       />
-                      <Area type="monotone" dataKey="income" stroke="#bef264" strokeWidth={3} fillOpacity={1} fill="url(#colorIncome)" />
-                      <Area type="monotone" dataKey="expense" stroke="#0f172a" strokeWidth={3} fillOpacity={1} fill="url(#colorExpense)" />
+                      <Area type="monotone" dataKey="income" stroke="#0d9488" strokeWidth={3} fillOpacity={1} fill="url(#colorIncome)" />
+                      <Area type="monotone" dataKey="expense" stroke="#f97316" strokeWidth={3} fillOpacity={1} fill="url(#colorExpense)" />
                    </AreaChart>
                 </ResponsiveContainer>
              </div>

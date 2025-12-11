@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Loan, LoanType, Bill, EntityLogo, Transaction, TransactionType, UserSettings, BillScheduleItem } from '../types';
-import { calculateLoanSchedule, calculateDurationInMonths } from '../services/loanCalculator';
+import { calculateLoanSchedule, calculateDurationInMonths, getBillSchedule } from '../services/loanCalculator';
 import { storageService } from '../services/storage';
 import { parseLoanDetailsFromText, parseBillFromPdf, parseLoanFromPdf } from '../services/geminiService';
 import { Plus, Trash2, CheckCircle, Calculator, FileText, UploadCloud, Calendar, Download, Loader2, AlertCircle, Sparkles, Wand2, X, Settings2, Edit3, ListChecks, RefreshCcw, Copy, Zap, Droplet, Wifi, Smartphone, Landmark, Receipt, Clock, Coins, Eye, TrendingDown, Hourglass, Archive, RotateCw, PlayCircle, Save, Image as ImageIcon, ChevronRight, CreditCard, RotateCcw, ArrowDown, CheckSquare, Square } from 'lucide-react';
@@ -1040,89 +1041,6 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
           </button>
       </div>
       );
-  };
-
-  // --- Bill Schedule Generator ---
-  const getBillSchedule = (bill: Bill) => {
-      const schedule = [];
-      const today = new Date();
-      
-      // Scenario 1: It has a start date and duration (Installment-like)
-      if (bill.startDate && bill.durationMonths && bill.durationMonths > 0) {
-          const start = new Date(bill.startDate);
-          
-          // --- Down Payment Logic ---
-          if (bill.downPayment && bill.downPayment > 0) {
-               const downPaymentDate = new Date(start);
-               const dpDateStr = downPaymentDate.toISOString().split('T')[0];
-               schedule.push({
-                   date: downPaymentDate, // Down payment is usually at start date
-                   amount: bill.downPayment,
-                   isPaid: (bill.paidDates || []).includes(dpDateStr),
-                   type: 'down_payment'
-               });
-          }
-
-          // --- Installments Logic ---
-          // Use Custom Schedule if exists
-          if (bill.customSchedule && bill.customSchedule.length > 0) {
-              bill.customSchedule.forEach(item => {
-                  const d = new Date(item.date);
-                  const dateStr = item.date;
-                  const isPaid = (bill.paidDates || []).includes(dateStr);
-                  schedule.push({ date: d, amount: item.amount, isPaid, type: 'installment' });
-              });
-          } else {
-              // Standard Generation
-              const monthlyAmount = bill.amount;
-              for (let i = 0; i < bill.durationMonths; i++) {
-                  const date = new Date(start);
-                  date.setMonth(start.getMonth() + i + 1); // Installments start next month
-                  
-                  const dateStr = date.toISOString().split('T')[0];
-                  const isPaid = (bill.paidDates || []).includes(dateStr);
-                  
-                  let amount = monthlyAmount;
-                  if (i === bill.durationMonths - 1 && bill.lastPaymentAmount) amount = bill.lastPaymentAmount;
-
-                  schedule.push({ date, amount, isPaid, type: 'installment' });
-              }
-          }
-      } 
-      // Scenario 2: Subscription (Ongoing)
-      else if (bill.isSubscription) {
-          // Show 3 months history and 9 months future
-          for (let i = -3; i <= 9; i++) {
-              const date = new Date(today);
-              date.setMonth(today.getMonth() + i);
-              // Normalize day if possible (e.g. renewalDate)
-              if (bill.renewalDate) {
-                  const renewalDay = new Date(bill.renewalDate).getDate();
-                  date.setDate(renewalDay);
-              }
-              const dateStr = date.toISOString().split('T')[0];
-              const isPaid = (bill.paidDates || []).includes(dateStr);
-              
-              schedule.push({ 
-                  date, 
-                  amount: bill.amount, 
-                  isPaid, 
-                  type: 'subscription' 
-              });
-          }
-      }
-      // Scenario 3: Simple Monthly Bill
-      else {
-           // Show current year context
-           for (let i = -1; i <= 3; i++) {
-              const date = new Date(today);
-              date.setMonth(today.getMonth() + i);
-              const dateStr = date.toISOString().split('T')[0];
-              const isPaid = (bill.paidDates || []).includes(dateStr);
-              schedule.push({ date, amount: bill.amount, isPaid, type: 'monthly' });
-           }
-      }
-      return schedule;
   };
 
   return (

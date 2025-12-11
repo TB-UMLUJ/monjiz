@@ -1,5 +1,4 @@
 
-
 import React, { useEffect, useState } from 'react';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
@@ -10,7 +9,7 @@ import Settings from './pages/Settings';
 import Login from './pages/Login';
 import { storageService } from './services/storage';
 import { authService } from './services/auth';
-import { Loan, Transaction, UserSettings } from './types';
+import { Loan, Transaction, UserSettings, Bill } from './types';
 import { Loader2 } from 'lucide-react';
 import { NotificationProvider, useNotification } from './contexts/NotificationContext';
 
@@ -22,21 +21,21 @@ const AppContent: React.FC = () => {
   // Application State
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loans, setLoans] = useState<Loan[]>([]);
+  const [bills, setBills] = useState<Bill[]>([]);
   const [settings, setSettings] = useState<UserSettings | null>(null);
-
-  // We need to access notify here, but useNotification context is only available inside NotificationProvider.
-  // We'll handle notification inside the component logic after context is provided.
 
   const loadData = async () => {
       setIsLoading(true);
       try {
-        const [txs, lns, stgs] = await Promise.all([
+        const [txs, lns, bls, stgs] = await Promise.all([
             storageService.getTransactions(),
             storageService.getLoans(),
+            storageService.getBills(),
             storageService.getSettings()
         ]);
         setTransactions(txs);
         setLoans(lns);
+        setBills(bls);
         setSettings(stgs);
         
         // Check for Salary/Recurring Deposit
@@ -113,6 +112,7 @@ const AppContent: React.FC = () => {
     // Clear data to prevent a flash of old content on next login
     setTransactions([]);
     setLoans([]);
+    setBills([]);
     setSettings(null);
     setActiveTab('dashboard');
   };
@@ -167,7 +167,7 @@ const AppContent: React.FC = () => {
   }
 
   return (
-    <Layout activeTab={activeTab} onTabChange={setActiveTab} onLogout={handleLogout} settings={settings}>
+    <Layout activeTab={activeTab} onTabChange={setActiveTab} onLogout={handleLogout} settings={settings} loans={loans} bills={bills}>
       <div className="animate-fade-in text-slate-900 dark:text-slate-100">
          {renderContent()}
       </div>

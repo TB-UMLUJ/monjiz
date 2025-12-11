@@ -1,5 +1,5 @@
 
-import { LoanScheduleItem, LoanType } from '../types';
+import { LoanScheduleItem, LoanType, Bill } from '../types';
 
 export const calculateDurationInMonths = (startDate: string, endDate: string): number => {
   const start = new Date(startDate);
@@ -28,14 +28,6 @@ export const calculateLoanSchedule = (
   if (months <= 0 || principal < 0) return []; // Principal can be 0? No, usually > 0.
 
   // 1. Fixed Profit Logic (Priority if provided)
-  // This handles the "Total Amount Due" mode where Profit is a fixed known number.
-  // Note: We check if fixedProfitAmount is defined and >= 0. Even if 0, if this mode is intended (passed explicitly),
-  // we might want to use it, but usually 0 profit falls back to 0% interest logic which is mathematically same.
-  // However, to force the "Total Amount" distribution logic, we check if it's being used.
-  // For safety, we assume if this is called with a specific profit amount, we use this block.
-  // But to avoid breaking existing logic, we only use it if it's > 0 OR if we need to enforce 'flat' division of principal.
-  // Given the new UI sends '0' as profit for interest-free, we rely on the fallback for 0.
-  
   if (fixedProfitAmount > 0) {
     const totalAmount = principal + fixedProfitAmount;
     const monthlyPayment = totalAmount / months;
@@ -147,3 +139,93 @@ export const calculateLoanSchedule = (
 
   return schedule;
 };
+
+// --- Bill Schedule Generator (Moved from Loans.tsx) ---
+export interface BillScheduleItemComputed {
+    date: Date;
+    amount: number;
+    isPaid: boolean;
+    type: 'down_payment' | 'installment' | 'subscription' | 'monthly';
+}
+
+export const getBillSchedule = (bill: Bill): BillScheduleItemComputed[] => {
+      const schedule: BillScheduleItemComputed[] = [];
+      const today = new Date();
+      
+      // Scenario 1: It has a start date and duration (Installment-like)
+      if (bill.startDate && bill.durationMonths && bill.durationMonths > 0) {
+          const start = new Date(bill.startDate);
+          
+          // --- Down Payment Logic ---
+          if (bill.downPayment && bill.downPayment > 0) {
+               const downPaymentDate = new Date(start);
+               const dpDateStr = downPaymentDate.toISOString().split('T')[0];
+               schedule.push({
+                   date: downPaymentDate, // Down payment is usually at start date
+                   amount: bill.downPayment,
+                   isPaid: (bill.paidDates || []).includes(dpDateStr),
+                   type: 'down_payment'
+               });
+          }
+
+          // --- Installments Logic ---
+          // Use Custom Schedule if exists
+          if (bill.customSchedule && bill.customSchedule.length > 0) {
+              bill.customSchedule.forEach(item => {
+                  const d = new Date(item.date);
+                  const dateStr = item.date;
+                  const isPaid = (bill.paidDates || []).includes(dateStr);
+                  schedule.push({ date: d, amount: item.amount, isPaid, type: 'installment' });
+              });
+          } else {
+              // Standard Generation
+              const monthlyAmount = bill.amount;
+              for (let i = 0; i < bill.durationMonths; i++) {
+                  const date = new Date(start);
+                  date.setMonth(start.getMonth() + i + 1); // Installments start next month
+                  
+                  const dateStr = date.toISOString().split('T')[0];
+                  const isPaid = (bill.paidDates || []).includes(dateStr);
+                  
+                  let amount = monthlyAmount;
+                  if (i === bill.durationMonths - 1 && bill.lastPaymentAmount) amount = bill.lastPaymentAmount;
+
+                  schedule.push({ date, amount, isPaid, type: 'installment' });
+              }
+          }
+      } 
+      // Scenario 2: Subscription (Ongoing)
+      else if (bill.isSubscription) {
+          // Show 3 months history and 9 months future
+          for (let i = -3; i <= 9; i++) {
+              const date = new Date(today);
+              date.setMonth(today.getMonth() + i);
+              // Normalize day if possible (e.g. renewalDate)
+              if (bill.renewalDate) {
+                  const renewalDay = new Date(bill.renewalDate).getDate();
+                  date.setDate(renewalDay);
+              }
+              const dateStr = date.toISOString().split('T')[0];
+              const isPaid = (bill.paidDates || []).includes(dateStr);
+              
+              schedule.push({ 
+                  date, 
+                  amount: bill.amount, 
+                  isPaid, 
+                  type: 'subscription' 
+              });
+          }
+      }
+      // Scenario 3: Simple Monthly Bill
+      else {
+           // Show current year context
+           for (let i = -1; i <= 3; i++) {
+              const date = new Date(today);
+              date.setMonth(today.getMonth() + i);
+              const dateStr = date.toISOString().split('T')[0];
+              const isPaid = (bill.paidDates || []).includes(dateStr);
+              schedule.push({ date, amount: bill.amount, isPaid, type: 'monthly' });
+           }
+      }
+      return schedule;
+  };

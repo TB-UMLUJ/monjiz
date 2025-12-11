@@ -1,6 +1,5 @@
 
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   LayoutDashboard, 
   Wallet, 
@@ -14,9 +13,13 @@ import {
   User,
   X,
   Eye,
-  EyeOff
+  EyeOff,
+  AlertTriangle,
+  Clock,
+  CheckCircle2
 } from 'lucide-react';
-import { UserSettings } from '../types';
+import { UserSettings, Loan, Bill } from '../types';
+import { getBillSchedule } from '../services/loanCalculator';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -24,9 +27,19 @@ interface LayoutProps {
   onTabChange: (tab: string) => void;
   onLogout: () => void;
   settings?: UserSettings | null; // Receive settings to get the logo
+  loans?: Loan[]; // Pass loans for notifications
+  bills?: Bill[]; // Pass bills for notifications
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLogout, settings }) => {
+interface NotificationItem {
+  id: string;
+  title: string;
+  msg: string;
+  time: string;
+  type: 'alert' | 'warning' | 'info' | 'success';
+}
+
+const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLogout, settings, loans = [], bills = [] }) => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [privacyMode, setPrivacyMode] = useState(false);
 
@@ -38,18 +51,100 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
     }
   }, [privacyMode]);
 
+  // --- Dynamic Notifications Logic ---
+  const notifications: NotificationItem[] = useMemo(() => {
+    const list: NotificationItem[] = [];
+    const today = new Date();
+    today.setHours(0,0,0,0);
+
+    // 1. Check Loans
+    loans.forEach(loan => {
+       if (loan.status === 'completed') return;
+       // Find upcoming or overdue installments
+       loan.schedule.forEach(item => {
+          if (!item.isPaid) {
+              const dueDate = new Date(item.paymentDate);
+              dueDate.setHours(0,0,0,0);
+              
+              const diffTime = dueDate.getTime() - today.getTime();
+              const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+              
+              if (diffDays < 0) {
+                  // Overdue
+                  list.push({
+                      id: `loan-${loan.id}-${item.paymentDate}`,
+                      title: 'تأخر سداد قرض',
+                      msg: `فات موعد سداد قسط "${loan.name}" منذ ${Math.abs(diffDays)} يوم`,
+                      time: dueDate.toLocaleDateString('ar-SA'),
+                      type: 'alert'
+                  });
+              } else if (diffDays >= 0 && diffDays <= 2) {
+                  // Upcoming (Today, Tomorrow, Day after)
+                  list.push({
+                      id: `loan-${loan.id}-${item.paymentDate}`,
+                      title: 'استحقاق قرض قريب',
+                      msg: diffDays === 0 ? `قسط "${loan.name}" يستحق اليوم!` : `قسط "${loan.name}" يستحق خلال ${diffDays} يوم`,
+                      time: dueDate.toLocaleDateString('ar-SA'),
+                      type: 'warning'
+                  });
+              }
+          }
+       });
+    });
+
+    // 2. Check Bills
+    bills.forEach(bill => {
+        if (bill.status === 'archived') return;
+        const schedule = getBillSchedule(bill);
+        
+        schedule.forEach(item => {
+            if (!item.isPaid) {
+                const dueDate = new Date(item.date);
+                dueDate.setHours(0,0,0,0);
+                
+                // Skip future dates far away for overdue check context
+                // But for bills, we check simple diff
+                const diffTime = dueDate.getTime() - today.getTime();
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                
+                // Only consider reasonable history for bills (e.g., last 30 days overdue) to avoid clutter
+                if (diffDays < 0 && diffDays > -30) {
+                     list.push({
+                        id: `bill-${bill.id}-${item.date.toISOString()}`,
+                        title: 'فاتورة متأخرة',
+                        msg: `فات موعد سداد "${bill.name}"`,
+                        time: dueDate.toLocaleDateString('ar-SA'),
+                        type: 'alert'
+                    });
+                } else if (diffDays >= 0 && diffDays <= 2) {
+                     list.push({
+                        id: `bill-${bill.id}-${item.date.toISOString()}`,
+                        title: 'استحقاق فاتورة',
+                        msg: diffDays === 0 ? `فاتورة "${bill.name}" تستحق اليوم!` : `فاتورة "${bill.name}" تستحق خلال ${diffDays} يوم`,
+                        time: dueDate.toLocaleDateString('ar-SA'),
+                        type: 'warning'
+                    });
+                }
+            }
+        });
+    });
+
+    // Sort: Alerts first, then by date
+    return list.sort((a, b) => {
+        if (a.type === 'alert' && b.type !== 'alert') return -1;
+        if (a.type !== 'alert' && b.type === 'alert') return 1;
+        return 0;
+    });
+  }, [loans, bills]);
+
+  const hasUnread = notifications.length > 0;
+
   const menuItems = [
     { id: 'dashboard', label: 'الرئيسية', icon: LayoutDashboard },
     { id: 'transactions', label: 'المصاريف', icon: Wallet },
     { id: 'loans', label: 'القروض', icon: Banknote },
     { id: 'budget', label: 'الميزانية', icon: PieChart },
     { id: 'settings', label: 'الإعدادات', icon: Settings },
-  ];
-
-  const notifications = [
-    { id: 1, title: 'تنبيه ميزانية', msg: 'اقتربت من تجاوز ميزانية الطعام', time: 'منذ ساعتين', read: false },
-    { id: 2, title: 'استحقاق قرض', msg: 'دفعة القرض الشخصي تستحق غداً', time: 'منذ 5 ساعات', read: false },
-    { id: 3, title: 'عملية ناجحة', msg: 'تم تسجيل راتب شهر يناير', time: 'أمس', read: true },
   ];
 
   const handleLogoutClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
@@ -188,29 +283,36 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
                   className={`w-10 h-10 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center border transition-all relative ${showNotifications ? 'border-eerie-black dark:border-[#bef264] bg-slate-50 dark:bg-lime-900/20 text-eerie-black dark:text-lime-400' : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:text-eerie-black dark:hover:text-white hover:shadow-md'}`}
                 >
                   <Bell size={20} />
-                  <span className="absolute top-2 right-2.5 w-2 h-2 bg-rose-500 rounded-full border border-white dark:border-slate-800"></span>
+                  {hasUnread && <span className="absolute top-2 right-2.5 w-2 h-2 bg-rose-500 rounded-full border border-white dark:border-slate-800"></span>}
                 </button>
 
                 {/* Notifications Dropdown */}
                 {showNotifications && (
                   <div className="fixed md:absolute top-20 md:top-full left-1/2 -translate-x-1/2 md:translate-x-0 md:left-0 mt-3 w-[90vw] md:w-80 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-100 dark:border-slate-700 p-2 z-50 animate-fade-in origin-top-left">
                     <div className="flex justify-between items-center p-3 mb-2 border-b border-slate-50 dark:border-slate-700">
-                      <h4 className="font-bold text-sm text-eerie-black dark:text-white">الإشعارات</h4>
+                      <h4 className="font-bold text-sm text-eerie-black dark:text-white">الإشعارات والتنبيهات</h4>
                       <button onClick={() => setShowNotifications(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X size={16}/></button>
                     </div>
                     <div className="space-y-1 max-h-64 overflow-y-auto">
-                      {notifications.map(n => (
-                        <div key={n.id} className={`p-3 rounded-xl flex gap-3 ${n.read ? 'bg-white dark:bg-slate-800' : 'bg-slate-50 dark:bg-slate-700/50'}`}>
-                           <div className={`w-2 h-2 mt-2 rounded-full flex-shrink-0 ${n.read ? 'bg-slate-300 dark:bg-slate-600' : 'bg-rose-500'}`}></div>
-                           <div>
-                              <p className="text-sm font-bold text-slate-800 dark:text-slate-200">{n.title}</p>
-                              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{n.msg}</p>
-                              <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-2">{n.time}</p>
-                           </div>
-                        </div>
-                      ))}
+                      {notifications.length > 0 ? (
+                          notifications.map(n => (
+                            <div key={n.id} className={`p-3 rounded-xl flex gap-3 ${n.type === 'alert' ? 'bg-rose-50 dark:bg-rose-900/10' : (n.type === 'warning' ? 'bg-amber-50 dark:bg-amber-900/10' : 'bg-slate-50 dark:bg-slate-700/50')}`}>
+                              <div className={`mt-1`}>
+                                  {n.type === 'alert' ? <AlertTriangle size={16} className="text-rose-500"/> : (n.type === 'warning' ? <Clock size={16} className="text-amber-500"/> : <CheckCircle2 size={16} className="text-emerald-500"/>)}
+                              </div>
+                              <div>
+                                  <p className={`text-sm font-bold ${n.type === 'alert' ? 'text-rose-700 dark:text-rose-400' : (n.type === 'warning' ? 'text-amber-700 dark:text-amber-400' : 'text-slate-800 dark:text-slate-200')}`}>{n.title}</p>
+                                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{n.msg}</p>
+                                  <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-2">{n.time}</p>
+                              </div>
+                            </div>
+                          ))
+                      ) : (
+                          <div className="text-center py-6 text-slate-400 text-sm">
+                              لا توجد تنبيهات جديدة
+                          </div>
+                      )}
                     </div>
-                    <button className="w-full py-2 text-xs font-bold text-[#8db600] mt-2 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg">تحديد الكل كمقروء</button>
                   </div>
                 )}
               </div>
