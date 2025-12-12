@@ -1,7 +1,7 @@
 
 
 import { GoogleGenAI } from "@google/genai";
-import { Transaction, Loan, TransactionType, LoanType } from "../types";
+import { Transaction, Loan, TransactionType, LoanType, ReceiptItem } from "../types";
 
 // Helper function to safely get API KEY without crashing in browser
 const getApiKey = () => {
@@ -119,6 +119,60 @@ export interface ParsedSMS {
   country?: string; // New
   paymentMethod?: string; // New
 }
+
+export interface ParsedReceipt {
+  merchant: string;
+  total: number;
+  date: string;
+  items: ReceiptItem[];
+  category: string;
+}
+
+export const parseReceiptFromImage = async (base64Image: string): Promise<ParsedReceipt | null> => {
+  try {
+    if (!API_KEY) throw new Error("API Key missing");
+    const ai = new GoogleGenAI({ apiKey: API_KEY });
+
+    // Remove prefix if present
+    const cleanBase64 = base64Image.split(',')[1] || base64Image;
+
+    const prompt = `
+      Analyze this receipt image and extract the following details into JSON:
+      - merchant: (Store name)
+      - total: (Total amount paid)
+      - date: (Date of purchase in ISO YYYY-MM-DD format, use today if not found)
+      - items: Array of { name: string, price: number } for each line item.
+      - category: Infer category (e.g., Food, Groceries, Shopping, Electronics).
+
+      Return strictly JSON.
+    `;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: [
+        {
+          inlineData: {
+            mimeType: 'image/jpeg',
+            data: cleanBase64
+          }
+        },
+        { text: prompt }
+      ],
+      config: {
+        responseMimeType: 'application/json'
+      }
+    });
+
+    const text = response.text;
+    if (!text) return null;
+
+    return JSON.parse(text) as ParsedReceipt;
+
+  } catch (error) {
+    console.error("Gemini Receipt Parse Error", error);
+    return null;
+  }
+};
 
 export const parseTransactionFromSMS = async (smsText: string): Promise<ParsedSMS | null> => {
   try {

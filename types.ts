@@ -10,6 +10,11 @@ export enum LoanType {
   DECREASING = 'decreasing',
 }
 
+export const DEFAULT_CATEGORIES = [
+  'طعام', 'نقل', 'سكن', 'فواتير وخدمات', 'تسوق', 'ترفيه', 'صحة', 'تعليم', 
+  'راتب', 'استثمار', 'تحويل بنكي', 'استلام أموال', 'رسوم بنكية', 'سداد بطاقة', 'أخرى'
+];
+
 export interface Transaction {
   id: string;
   amount: number;
@@ -28,6 +33,14 @@ export interface Transaction {
   cardLast4?: string;
   country?: string;
   paymentMethod?: string;
+  // Itemized receipt
+  items?: ReceiptItem[]; 
+}
+
+export interface ReceiptItem {
+  name: string;
+  price: number;
+  quantity?: number;
 }
 
 export interface LoanScheduleItem {
@@ -123,6 +136,7 @@ export interface IncomeSource {
   basicSalary?: number;
   gosiDeduction?: number;
   allowances?: Allowance[];
+  calendarType?: 'gregorian' | 'hijri'; // New: Salary Calendar Type
 }
 
 export interface BankCard {

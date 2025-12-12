@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Loan, LoanType, Bill, EntityLogo, Transaction, TransactionType, UserSettings, BillScheduleItem } from '../types';
 import { calculateLoanSchedule, calculateDurationInMonths, getBillSchedule } from '../services/loanCalculator';
@@ -6,6 +7,7 @@ import { storageService } from '../services/storage';
 import { parseLoanDetailsFromText, parseBillFromPdf, parseLoanFromPdf } from '../services/geminiService';
 import { Plus, Trash2, CheckCircle, Calculator, FileText, UploadCloud, Calendar, Download, Loader2, AlertCircle, Sparkles, Wand2, X, Settings2, Edit3, ListChecks, RefreshCcw, Copy, Zap, Droplet, Wifi, Smartphone, Landmark, Receipt, Clock, Coins, Eye, TrendingDown, Hourglass, Archive, RotateCw, PlayCircle, Save, Image as ImageIcon, ChevronRight, CreditCard, RotateCcw, ArrowDown, CheckSquare, Square } from 'lucide-react';
 import { useNotification } from '../contexts/NotificationContext';
+import { useSuccess } from '../contexts/SuccessContext';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface LoansPageProps {
@@ -54,6 +56,7 @@ interface ManualScheduleItem {
 
 const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSettings }) => {
   const { notify } = useNotification();
+  const { showSuccess } = useSuccess();
   
   // Tab State
   const [activeTab, setActiveTab] = useState<'loans' | 'bills' | 'archive' | 'subscriptions'>('loans');
@@ -469,13 +472,14 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
       if (isEditing) {
          await storageService.editLoanDetails(loanData);
          if (selectedLoan?.id === loanData.id) setSelectedLoan(loanData);
+         notify('تم تحديث بيانات القرض', 'success');
       } else {
          await storageService.saveLoan(loanData);
+         showSuccess('تهانينا!', 'تم إضافة القرض بنجاح.');
       }
       const updatedLoans = await storageService.getLoans();
       setLoans(updatedLoans);
       setShowAddModal(false);
-      notify('تم الحفظ بنجاح', 'success');
     } catch (err: any) { 
         console.error("Error saving loan:", err); 
         notify('خطأ في الحفظ، تأكد من البيانات', 'error'); 
@@ -555,13 +559,17 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
              if (existing) billData.paidDates = existing.paidDates;
           }
 
-          if (editingBillId) await storageService.updateBill(billData);
-          else await storageService.saveBill(billData);
+          if (editingBillId) {
+              await storageService.updateBill(billData);
+              notify('تم تحديث الفاتورة', 'success');
+          } else {
+              await storageService.saveBill(billData);
+              showSuccess('تم!', 'تم إضافة الالتزام الجديد بنجاح.');
+          }
           
           setBills(await storageService.getBills());
           setShowAddBillModal(false);
           setEditingBillId(null);
-          notify('تم الحفظ بنجاح', 'success');
       } catch (e: any) { 
           console.error("Error saving bill:", e);
           const msg = e?.message || 'خطأ غير معروف';
@@ -858,7 +866,8 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                   }
               }
 
-              notify('تم السداد وتسجيل العملية بنجاح', 'success');
+              // USE SHOW SUCCESS instead of Notify for Payments (Big action)
+              showSuccess('تم السداد بنجاح!', 'تم تسجيل العملية وتحديث الرصيد.');
           }
 
           setPaymentModal({ ...paymentModal, isOpen: false });

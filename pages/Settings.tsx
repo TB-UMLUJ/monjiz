@@ -1,15 +1,17 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
-import { UserSettings, IncomeSource, BankCard, LogoPosition, EntityLogo, Allowance, ReportConfig, Transaction, Loan, Bill, FinancialGoal } from '../types';
+import { UserSettings, IncomeSource, BankCard, LogoPosition, EntityLogo, Allowance, ReportConfig, Transaction, Loan, Bill, FinancialGoal, CustomCategory, DEFAULT_CATEGORIES } from '../types';
 import { storageService } from '../services/storage';
-import { Save, Settings as SettingsIcon, DollarSign, Calendar, Trash2, UploadCloud, Check, FileText, Printer, Square, X, Download, Plus, Loader2, CreditCard, Palette, Shield, Lock, Image as ImageIcon, Layout as LayoutIcon, Landmark, Tags, Bell, Database, HelpCircle, MessageSquare, Star, Share2, ChevronLeft, AlertTriangle } from 'lucide-react';
+import { Save, Settings as SettingsIcon, DollarSign, Calendar, Trash2, UploadCloud, Check, FileText, Printer, Square, X, Download, Plus, Loader2, CreditCard, Palette, Shield, Lock, Image as ImageIcon, Layout as LayoutIcon, Landmark, Tags, Bell, Database, HelpCircle, MessageSquare, Star, Share2, ChevronLeft, AlertTriangle, LogOut, CheckCircle } from 'lucide-react';
 import { useNotification } from '../contexts/NotificationContext';
 import PwaManager from '../components/PwaManager';
 
 interface SettingsProps {
   settings: UserSettings;
   setSettings: React.Dispatch<React.SetStateAction<UserSettings | null>>;
-  onReloadApp: () => void; // Function to trigger a full app reload
+  onReloadApp: () => void;
+  onLogout: () => void; // New Prop
 }
 
 const SAUDI_BANKS = ['مصرف الراجحي', 'البنك الأهلي السعودي', 'بنك الرياض', 'مصرف الإنماء', 'البنك العربي الوطني', 'البنك السعودي الأول (SAB)', 'بنك البلاد', 'بنك الجزيرة', 'البنك السعودي للاستثمار', 'بنك الخليج الدولي', 'البنك السعودي الفرنسي', 'STC Pay', 'UrPay'];
@@ -136,7 +138,7 @@ const AccountsSettings = ({ formData, setFormData }: { formData: UserSettings, s
 };
 
 const IncomeSettings = ({ formData, setFormData }: { formData: UserSettings, setFormData: Function }) => {
-    const currentIncome = formData.incomeSources[0] || { id: 'default', name: '', amount: 0, dayOfMonth: 27, basicSalary: 0, gosiDeduction: 0, allowances: [] };
+    const currentIncome = formData.incomeSources[0] || { id: 'default', name: '', amount: 0, dayOfMonth: 27, basicSalary: 0, gosiDeduction: 0, allowances: [], calendarType: 'gregorian' };
     
     const updateIncome = (field: keyof IncomeSource, value: any) => {
         const updatedIncomes = [...formData.incomeSources];
@@ -220,15 +222,174 @@ const IncomeSettings = ({ formData, setFormData }: { formData: UserSettings, set
                          <p className="text-emerald-100 text-sm mb-2">صافي الراتب (الإيداع)</p>
                          <h2 className="text-4xl font-bold">{currentIncome.amount.toLocaleString('en-US')} <span className="text-lg">SAR</span></h2>
                      </div>
-                     <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border flex items-center justify-between">
-                         <label className="text-sm font-bold text-slate-700 dark:text-slate-300">يوم الإيداع</label>
+                     <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
+                         <div className="flex justify-between items-center mb-4">
+                             <label className="text-sm font-bold text-slate-700 dark:text-slate-300">يوم نزول الراتب</label>
+                             <div className="flex gap-1 bg-white dark:bg-slate-800 p-1 rounded-lg border border-slate-200 dark:border-slate-600">
+                                 <button 
+                                    type="button"
+                                    onClick={() => updateIncome('calendarType', 'gregorian')}
+                                    className={`text-xs px-3 py-1 rounded-md transition-colors ${currentIncome.calendarType !== 'hijri' ? 'bg-indigo-600 text-white' : 'text-slate-500'}`}
+                                 >
+                                     ميلادي
+                                 </button>
+                                 <button 
+                                    type="button"
+                                    onClick={() => updateIncome('calendarType', 'hijri')}
+                                    className={`text-xs px-3 py-1 rounded-md transition-colors ${currentIncome.calendarType === 'hijri' ? 'bg-emerald-600 text-white' : 'text-slate-500'}`}
+                                 >
+                                     هجري
+                                 </button>
+                             </div>
+                         </div>
                          <div className="flex items-center gap-2">
                              <Calendar size={18} className="text-slate-400"/>
-                             <input type="number" min="1" max="31" value={currentIncome.dayOfMonth} onChange={e => updateIncome('dayOfMonth', Number(e.target.value))} className="w-16 p-2 text-center font-bold rounded-lg bg-white dark:bg-slate-700" />
+                             <div className="flex-1">
+                                 <input 
+                                    type="number" 
+                                    min="1" max="31" 
+                                    value={currentIncome.dayOfMonth} 
+                                    onChange={e => updateIncome('dayOfMonth', Number(e.target.value))} 
+                                    className="w-full p-2 text-center font-bold rounded-lg bg-white dark:bg-slate-700 outline-none border border-slate-200 dark:border-slate-600" 
+                                 />
+                             </div>
+                             <span className="text-xs font-bold text-slate-500">
+                                 من كل شهر {currentIncome.calendarType === 'hijri' ? 'هجري' : 'ميلادي'}
+                             </span>
                          </div>
                      </div>
                  </div>
              </div>
+        </SubViewContainer>
+    );
+};
+
+const CategoriesSettings = ({ formData, setFormData }: { formData: UserSettings, setFormData: Function }) => {
+    const [newCatName, setNewCatName] = useState('');
+    const [newCatIcon, setNewCatIcon] = useState('🛍️');
+    const [newCatColor, setNewCatColor] = useState('#f43f5e');
+    const [showIconPicker, setShowIconPicker] = useState(false);
+
+    const EMOJIS = ['🛍️', '🍔', '⛽', '🏠', '🎬', '💊', '🎓', '✈️', '🎁', '🔧', '💻', '💸'];
+    const COLORS = ['#f43f5e', '#ec4899', '#8b5cf6', '#3b82f6', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444'];
+
+    const handleAdd = () => {
+        if (!newCatName) return;
+        const newCat: CustomCategory = {
+            id: Date.now().toString(),
+            name: newCatName,
+            icon: newCatIcon,
+            color: newCatColor
+        };
+        setFormData((prev: UserSettings) => ({
+            ...prev,
+            customCategories: [...prev.customCategories, newCat]
+        }));
+        setNewCatName('');
+        setShowIconPicker(false);
+    };
+
+    const handleDelete = (id: string) => {
+        setFormData((prev: UserSettings) => ({
+            ...prev,
+            customCategories: prev.customCategories.filter(c => c.id !== id)
+        }));
+    };
+
+    return (
+        <SubViewContainer>
+            <div className="space-y-6">
+                {/* Default Categories */}
+                <div>
+                    <h4 className="text-sm font-bold text-slate-500 dark:text-slate-400 mb-3">التصنيفات الافتراضية</h4>
+                    <div className="flex flex-wrap gap-2">
+                        {DEFAULT_CATEGORIES.map(cat => (
+                            <span key={cat} className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold">
+                                {cat}
+                            </span>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Custom Categories */}
+                <div>
+                    <h4 className="text-sm font-bold text-slate-500 dark:text-slate-400 mb-3">تصنيفاتك الخاصة</h4>
+                    <div className="flex flex-wrap gap-2 mb-4">
+                        {formData.customCategories.length > 0 ? formData.customCategories.map(cat => (
+                            <div key={cat.id} className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm animate-scale-in">
+                                <span className="text-sm">{cat.icon}</span>
+                                <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{cat.name}</span>
+                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.color }}></div>
+                                <button onClick={() => handleDelete(cat.id)} className="ml-1 text-slate-400 hover:text-rose-500 transition-colors">
+                                    <X size={14}/>
+                                </button>
+                            </div>
+                        )) : (
+                            <p className="text-xs text-slate-400 italic">لا توجد تصنيفات خاصة بعد</p>
+                        )}
+                    </div>
+
+                    {/* Add Form */}
+                    <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
+                        <div className="flex gap-2 mb-3">
+                            <input 
+                                type="text" 
+                                placeholder="اسم التصنيف (مثل: قهوة مختصة)" 
+                                className="flex-[2] p-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 outline-none text-sm dark:text-white"
+                                value={newCatName}
+                                onChange={e => setNewCatName(e.target.value)}
+                            />
+                            <div className="relative">
+                                <button 
+                                    type="button" 
+                                    onClick={() => setShowIconPicker(!showIconPicker)}
+                                    className="w-10 h-10 flex items-center justify-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg text-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                                >
+                                    {newCatIcon}
+                                </button>
+                                
+                                {showIconPicker && (
+                                    <div className="fixed inset-0 z-40" onClick={() => setShowIconPicker(false)}></div>
+                                )}
+
+                                {showIconPicker && (
+                                    <div className="absolute top-full left-0 mt-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2 shadow-xl z-50 grid grid-cols-4 gap-1 w-40">
+                                        {EMOJIS.map(e => (
+                                            <button 
+                                                key={e} 
+                                                type="button"
+                                                onClick={() => { setNewCatIcon(e); setShowIconPicker(false); }} 
+                                                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-xl flex items-center justify-center"
+                                            >
+                                                {e}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                        <div className="flex justify-between items-center">
+                            <div className="flex gap-2">
+                                {COLORS.map(c => (
+                                    <button 
+                                        key={c} 
+                                        onClick={() => setNewCatColor(c)}
+                                        className={`w-6 h-6 rounded-full transition-transform ${newCatColor === c ? 'scale-125 ring-2 ring-offset-2 ring-slate-300 dark:ring-slate-600' : ''}`}
+                                        style={{ backgroundColor: c }}
+                                    />
+                                ))}
+                            </div>
+                            <button 
+                                onClick={handleAdd}
+                                disabled={!newCatName}
+                                className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                            >
+                                <Plus size={14}/> إضافة
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </SubViewContainer>
     );
 };
@@ -397,7 +558,7 @@ const SupportView = () => (
     </SubViewContainer>
 );
 
-const Settings: React.FC<SettingsProps> = ({ settings, setSettings, onReloadApp }) => {
+const Settings: React.FC<SettingsProps> = ({ settings, setSettings, onReloadApp, onLogout }) => {
   const { notify } = useNotification();
   const [formData, setFormData] = useState<UserSettings>(settings);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -454,7 +615,7 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings, onReloadApp 
       <SettingsSection title="أدوات">
         <SettingsItem icon={<Landmark size={24} className="text-blue-500" />} text="الحسابات والبطاقات" onClick={() => openView('accounts', 'الحسابات والبطاقات')} />
         <SettingsItem icon={<DollarSign size={24} className="text-emerald-500" />} text="الدخل والراتب" onClick={() => openView('income', 'الدخل والراتب')} />
-        <SettingsItem icon={<Tags size={24} className="text-pink-500" />} text="التصنيفات" onClick={() => notify('هذه الميزة قيد التطوير', 'info')} />
+        <SettingsItem icon={<Tags size={24} className="text-pink-500" />} text="التصنيفات" onClick={() => openView('categories', 'إدارة التصنيفات')} />
       </SettingsSection>
 
       <SettingsSection title="إعدادات">
@@ -470,6 +631,17 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings, onReloadApp 
         <SettingsItem icon={<Star size={24} className="text-yellow-400" />} text="قيم التطبيق" onClick={() => notify('قريباً على متاجر التطبيقات!', 'info')} />
         <SettingsItem icon={<Share2 size={24} className="text-indigo-500" />} text="شارك التطبيق" onClick={handleShare} />
       </SettingsSection>
+
+      {/* Mobile Only Logout */}
+      <div className="md:hidden pt-4 pb-8">
+          <button 
+            onClick={onLogout}
+            className="w-full flex items-center justify-center gap-2 p-4 bg-rose-50 text-rose-600 dark:bg-rose-900/10 dark:text-rose-400 rounded-2xl font-bold hover:bg-rose-100 dark:hover:bg-rose-900/30 transition-colors"
+          >
+              <LogOut size={20}/>
+              تسجيل الخروج
+          </button>
+      </div>
     </div>
   );
 
@@ -478,6 +650,7 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings, onReloadApp 
       case 'general': return <GeneralSettings formData={formData} setFormData={setFormData} handleFileSelect={handleFileSelect} />;
       case 'accounts': return <AccountsSettings formData={formData} setFormData={setFormData} />;
       case 'income': return <IncomeSettings formData={formData} setFormData={setFormData} />;
+      case 'categories': return <CategoriesSettings formData={formData} setFormData={setFormData} />;
       case 'notifications': return <SubViewContainer><PwaManager /></SubViewContainer>;
       case 'security': return <SecuritySettings formData={formData} setFormData={setFormData} />;
       case 'data': return <DataSettings onReloadApp={onReloadApp} />;
@@ -502,7 +675,7 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings, onReloadApp 
       {renderViewContent()}
 
       {/* Save button only shows for views that need it */}
-      {['general', 'accounts', 'income', 'security'].includes(activeView) && (
+      {['general', 'accounts', 'income', 'security', 'categories'].includes(activeView) && (
         <div className="flex justify-end pt-4 mt-4 border-t border-slate-100 dark:border-slate-800">
             <button 
                 onClick={handleSave} 
@@ -518,12 +691,12 @@ const Settings: React.FC<SettingsProps> = ({ settings, setSettings, onReloadApp 
   );
 };
 
-const SettingsWrapper: React.FC<{ settings: UserSettings; setSettings: React.Dispatch<React.SetStateAction<UserSettings | null>> }> = ({ settings, setSettings }) => {
+const SettingsWrapper: React.FC<{ settings: UserSettings; setSettings: React.Dispatch<React.SetStateAction<UserSettings | null>>; onLogout: () => void }> = ({ settings, setSettings, onLogout }) => {
     const handleReload = () => {
         window.location.reload();
     };
 
-    return <Settings settings={settings} setSettings={setSettings} onReloadApp={handleReload} />;
+    return <Settings settings={settings} setSettings={setSettings} onReloadApp={handleReload} onLogout={onLogout} />;
 };
 
 

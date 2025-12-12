@@ -1,4 +1,5 @@
 
+
 import React, { useEffect, useState } from 'react';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
@@ -13,10 +14,12 @@ import { parseTransactionFromSMS } from './services/geminiService';
 import { Loan, Transaction, UserSettings, Bill, ThemeOption, TransactionType } from './types';
 import { Loader2, MessageSquarePlus, Wand2, X, CreditCard, Sparkles } from 'lucide-react';
 import { NotificationProvider, useNotification } from './contexts/NotificationContext';
+import { SuccessProvider, useSuccess } from './contexts/SuccessContext';
 
-// Wrap AppContent to use Notification Context
+// Wrap AppContent to use Contexts
 const AppContent: React.FC = () => {
   const { notify } = useNotification();
+  const { showSuccess } = useSuccess();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isLoading, setIsLoading] = useState(true);
@@ -230,13 +233,11 @@ const AppContent: React.FC = () => {
       const freshTransactions = await storageService.getTransactions();
       setTransactions(freshTransactions);
 
-      let successMessage = `تم إضافة العملية "${parsedData.merchant}" بنجاح`;
-      if (parsedData.newBalance !== undefined && parsedData.newBalance !== null) {
-          successMessage += ` وتحديث الرصيد إلى ${parsedData.newBalance}`;
-      }
-      notify(successMessage, 'success');
       setShowSmartModal(false);
       setSmartSmsText('');
+      
+      // SHOW SUCCESS MODAL
+      showSuccess(`تم إضافة العملية بنجاح!`, `تم تسجيل "${parsedData.merchant}" بقيمة ${parsedData.amount} ريال.`);
 
     } catch (err) {
       console.error(err);
@@ -268,7 +269,7 @@ const AppContent: React.FC = () => {
       case 'budget':
         return <Budget transactions={transactions} settings={settings} />;
       case 'settings':
-        return <Settings settings={settings} setSettings={setSettings} />;
+        return <Settings settings={settings} setSettings={setSettings} onLogout={handleLogout} />;
       default:
         return (
           <Dashboard 
@@ -367,7 +368,9 @@ const AppContent: React.FC = () => {
 const App: React.FC = () => {
   return (
     <NotificationProvider>
-      <AppContent />
+      <SuccessProvider>
+        <AppContent />
+      </SuccessProvider>
     </NotificationProvider>
   );
 };

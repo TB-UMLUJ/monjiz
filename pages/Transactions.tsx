@@ -1,10 +1,12 @@
 
-import React, { useState } from 'react';
-import { Transaction, TransactionType, UserSettings } from '../types';
+
+import React, { useState, useRef } from 'react';
+import { Transaction, TransactionType, UserSettings, ReceiptItem, DEFAULT_CATEGORIES } from '../types';
 import { storageService } from '../services/storage';
-import { parseTransactionFromSMS } from '../services/geminiService';
-import { Trash2, Search, ArrowDownLeft, ArrowUpRight, Edit3, Save, X, Loader2, MessageSquarePlus, Wand2, Sparkles, CreditCard, AlertTriangle, Plus, Globe, Receipt, FileText, Tag, Hash } from 'lucide-react';
+import { parseTransactionFromSMS, parseReceiptFromImage } from '../services/geminiService';
+import { Trash2, Search, ArrowDownLeft, ArrowUpRight, Edit3, Save, X, Loader2, MessageSquarePlus, Wand2, Sparkles, CreditCard, AlertTriangle, Plus, Globe, Receipt, FileText, Tag, Hash, Camera, Video, ScanLine } from 'lucide-react';
 import { useNotification } from '../contexts/NotificationContext';
+import { useSuccess } from '../contexts/SuccessContext';
 
 interface TransactionsProps {
   transactions: Transaction[];
@@ -15,6 +17,7 @@ interface TransactionsProps {
 
 const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactions, settings, setSettings }) => {
   const { notify } = useNotification();
+  const { showSuccess } = useSuccess();
   const [filter, setFilter] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   
@@ -27,6 +30,13 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
   const [showSmartModal, setShowSmartModal] = useState(false);
   const [smartSmsText, setSmartSmsText] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+  // Scanner Modal State
+  const [showScannerModal, setShowScannerModal] = useState(false);
+  const [stream, setStream] = useState<MediaStream | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
 
   // Edit State
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -46,13 +56,12 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
     transactionReference: '',
     operationKind: '',
     country: '',
-    paymentMethod: ''
+    paymentMethod: '',
+    items: [] as ReceiptItem[]
   });
 
-  const categories = [
-    'طعام', 'نقل', 'سكن', 'فواتير وخدمات', 'تسوق', 'ترفيه', 'صحة', 'تعليم', 
-    'راتب', 'استثمار', 'تحويل بنكي', 'استلام أموال', 'رسوم بنكية', 'سداد بطاقة', 'أخرى'
-  ];
+  // Combine Default and Custom Categories
+  const categories = [...DEFAULT_CATEGORIES, ...(settings.customCategories?.map(c => c.name) || [])];
 
   const operationKinds = [
     "شراء عبر الإنترنت",
@@ -83,7 +92,8 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
       transactionReference: '',
       operationKind: '',
       country: '',
-      paymentMethod: ''
+      paymentMethod: '',
+      items: []
     });
     setEditingId(null);
   };
@@ -113,7 +123,8 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
       transactionReference: tx.transactionReference || '',
       operationKind: tx.operationKind || '',
       country: tx.country || '',
-      paymentMethod: tx.paymentMethod || ''
+      paymentMethod: tx.paymentMethod || '',
+      items: tx.items || []
     });
     setShowAddModal(true); // Open modal for editing
   };
@@ -128,6 +139,13 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
       // Combine Date and Time
       const combinedDateTime = new Date(`${formTx.date}T${formTx.time}:00`).toISOString();
 
+      // Append items list to note if items exist
+      let finalNote = formTx.note;
+      if (formTx.items && formTx.items.length > 0) {
+          const itemsStr = formTx.items.map(i => `- ${i.name} (${i.price})`).join('\n');
+          finalNote = finalNote ? `${finalNote}\n\nالأصناف:\n${itemsStr}` : `الأصناف:\n${itemsStr}`;
+      }
+
       if (editingId) {
         // Edit Mode
         const updatedTx: Transaction = {
@@ -135,7 +153,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
           amount: parseFloat(formTx.amount),
           category: formTx.category,
           type: formTx.type,
-          note: formTx.note,
+          note: finalNote,
           date: combinedDateTime,
           cardId: finalCardId || undefined,
           merchant: formTx.merchant || undefined,
@@ -143,7 +161,8 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
           transactionReference: formTx.transactionReference || undefined,
           operationKind: formTx.operationKind || undefined,
           country: formTx.country || undefined,
-          paymentMethod: formTx.paymentMethod || undefined
+          paymentMethod: formTx.paymentMethod || undefined,
+          items: formTx.items || undefined
         };
         await storageService.updateTransaction(updatedTx);
         notify('تم تعديل العملية بنجاح', 'success');
@@ -184,7 +203,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
           amount: amount,
           category: formTx.category,
           type: formTx.type,
-          note: formTx.note,
+          note: finalNote,
           date: combinedDateTime,
           cardId: finalCardId || undefined,
           merchant: formTx.merchant || undefined,
@@ -192,11 +211,12 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
           transactionReference: formTx.transactionReference || undefined,
           operationKind: formTx.operationKind || undefined,
           country: formTx.country || undefined,
-          paymentMethod: formTx.paymentMethod || undefined
+          paymentMethod: formTx.paymentMethod || undefined,
+          items: formTx.items || undefined
         };
 
         await storageService.saveTransaction(tx);
-        notify('تم إضافة العملية وتحديث الرصيد', 'success');
+        showSuccess('تم إضافة العملية!', 'تم تسجيل العملية وتحديث الرصيد بنجاح.');
       }
       
       // Refresh Data
@@ -292,11 +312,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
          setShowSmartModal(false);
          setSmartSmsText('');
 
-         let successMessage = `تم إضافة العملية على ${cardName}`;
-         if (parsed.newBalance !== undefined && parsed.newBalance !== null) {
-             successMessage += ` وتحديث الرصيد إلى ${parsed.newBalance}`;
-         }
-         notify(successMessage, 'success');
+         showSuccess(`تم إضافة العملية`, `تم تسجيل "${parsed.merchant}" بنجاح على ${cardName}`);
 
       } else {
          notify('لم نتمكن من تحليل النص، يرجى التأكد من الصيغة', 'warning');
@@ -360,6 +376,80 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
     }
   };
 
+  // --- Camera Logic ---
+  const startCamera = async () => {
+    try {
+      const mediaStream = await navigator.mediaDevices.getUserMedia({ 
+          video: { facingMode: 'environment' } // Prefer back camera
+      });
+      setStream(mediaStream);
+      if (videoRef.current) {
+        videoRef.current.srcObject = mediaStream;
+      }
+      setShowScannerModal(true);
+    } catch (err) {
+      console.error(err);
+      notify("فشل الوصول للكاميرا", "error");
+    }
+  };
+
+  const stopCamera = () => {
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+      setStream(null);
+    }
+  };
+
+  const captureImage = () => {
+      if (!videoRef.current) return;
+      const canvas = document.createElement('canvas');
+      canvas.width = videoRef.current.videoWidth;
+      canvas.height = videoRef.current.videoHeight;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+          ctx.drawImage(videoRef.current, 0, 0);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+          setCapturedImage(dataUrl);
+          stopCamera();
+      }
+  };
+
+  const analyzeReceipt = async () => {
+      if (!capturedImage) return;
+      setIsScanning(true);
+      try {
+          const parsed = await parseReceiptFromImage(capturedImage);
+          if (parsed) {
+              setFormTx(prev => ({
+                  ...prev,
+                  amount: parsed.total.toString(),
+                  merchant: parsed.merchant,
+                  date: parsed.date,
+                  category: parsed.category || 'تسوق',
+                  note: `إيصال: ${parsed.merchant}`,
+                  items: parsed.items
+              }));
+              setShowScannerModal(false);
+              setCapturedImage(null);
+              setShowAddModal(true); // Open edit modal with filled data
+              notify('تم استخراج بيانات الإيصال بنجاح', 'success');
+          } else {
+              notify('لم يتمكن من قراءة الإيصال بوضوح', 'warning');
+          }
+      } catch (e) {
+          console.error(e);
+          notify('حدث خطأ أثناء تحليل الإيصال', 'error');
+      } finally {
+          setIsScanning(false);
+      }
+  };
+
+  const closeScanner = () => {
+      stopCamera();
+      setCapturedImage(null);
+      setShowScannerModal(false);
+  };
+
   const filteredData = transactions.filter(t => 
     t.category.includes(filter) || 
     t.note?.includes(filter) ||
@@ -381,17 +471,26 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
                   onChange={e => setFilter(e.target.value)}
                 />
           </div>
-          <div className="grid grid-cols-2 gap-3 w-full md:w-auto">
+          <div className="grid grid-cols-2 md:flex gap-3 w-full md:w-auto">
                <button 
                   onClick={() => setShowSmartModal(true)}
                   className="bg-white dark:bg-slate-900 text-slate-700 dark:text-white border border-slate-200 dark:border-slate-800 px-4 py-3 rounded-xl font-bold text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-center gap-2 shadow-sm"
                 >
                   <Sparkles size={16} className="text-violet-500" />
-                  <span>تسجيل ذكي</span>
+                  <span className="hidden md:inline">تسجيل ذكي</span>
+                  <span className="md:hidden">SMS</span>
                 </button>
                <button 
+                  onClick={startCamera}
+                  className="bg-white dark:bg-slate-900 text-slate-700 dark:text-white border border-slate-200 dark:border-slate-800 px-4 py-3 rounded-xl font-bold text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-center gap-2 shadow-sm"
+               >
+                  <Camera size={16} className="text-blue-500" />
+                  <span className="hidden md:inline">ماسح الإيصالات</span>
+                  <span className="md:hidden">مسح</span>
+               </button>
+               <button 
                   onClick={handleOpenAddModal}
-                  className="bg-emerald-600 dark:bg-emerald-600 text-white px-5 py-3 rounded-xl font-bold text-sm hover:bg-emerald-700 dark:hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 shadow-lg hover:shadow-xl shadow-slate-900/10"
+                  className="col-span-2 md:col-span-1 bg-emerald-600 dark:bg-emerald-600 text-white px-5 py-3 rounded-xl font-bold text-sm hover:bg-emerald-700 dark:hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 shadow-lg hover:shadow-xl shadow-slate-900/10"
                 >
                   <Plus size={18} />
                   <span>إضافة عملية</span>
@@ -472,7 +571,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
              >
                 <div className="flex justify-between items-center mb-6 border-b border-slate-100 dark:border-slate-800 pb-4">
                     <h3 className="font-bold text-xl text-eerie-black dark:text-white">
-                        {editingId ? 'تعديل العملية' : 'تسجيل عملية يدوياً'}
+                        {editingId ? 'تعديل العملية' : 'تسجيل عملية'}
                     </h3>
                     <button onClick={() => setShowAddModal(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-500 transition-colors">
                         <X size={24}/>
@@ -625,6 +724,21 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
                             onChange={e => setFormTx({...formTx, note: e.target.value})}
                             />
                         </div>
+
+                        {/* Items List (If scanned) */}
+                        {formTx.items && formTx.items.length > 0 && (
+                            <div className="col-span-2 bg-indigo-50 dark:bg-indigo-900/20 p-3 rounded-xl border border-indigo-100 dark:border-indigo-800">
+                                <h4 className="text-xs font-bold text-indigo-700 dark:text-indigo-300 mb-2">الأصناف المستخرجة:</h4>
+                                <div className="space-y-1 max-h-32 overflow-y-auto">
+                                    {formTx.items.map((item, idx) => (
+                                        <div key={idx} className="flex justify-between text-xs text-slate-600 dark:text-slate-300">
+                                            <span>{item.name}</span>
+                                            <span className="font-bold">{item.price}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     <div className="pt-4 flex gap-3 border-t border-slate-100 dark:border-slate-800 mt-2">
@@ -719,7 +833,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
                      {selectedTx.note && (
                         <div className="text-sm bg-amber-50 dark:bg-amber-900/10 p-3 rounded-lg border border-amber-100 dark:border-amber-900/30">
                             <p className="text-amber-800 dark:text-amber-500 font-bold text-xs mb-1">ملاحظة</p>
-                            <p className="text-slate-700 dark:text-slate-300 leading-relaxed">{selectedTx.note}</p>
+                            <p className="text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">{selectedTx.note}</p>
                         </div>
                      )}
                 </div>
@@ -819,6 +933,82 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
                       {isAnalyzing ? <Loader2 className="animate-spin" size={20} /> : <Sparkles size={20} />}
                       {isAnalyzing ? 'جاري التحليل...' : 'تحليل وإضافة العملية'}
                   </button>
+              </div>
+          </div>
+      )}
+
+      {/* Smart Receipt Scanner Modal */}
+      {showScannerModal && (
+          <div 
+            className="fixed inset-0 z-[70] bg-black flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+              {/* Header */}
+              <div className="flex justify-between items-center p-4 bg-black/50 backdrop-blur text-white z-10">
+                  <div className="flex items-center gap-2">
+                      <Camera size={20} />
+                      <span className="font-bold">ماسح الإيصالات الذكي</span>
+                  </div>
+                  <button onClick={closeScanner} className="p-2 rounded-full bg-white/10 hover:bg-white/20"><X size={20}/></button>
+              </div>
+
+              {/* Camera Area */}
+              <div className="flex-1 relative bg-black flex items-center justify-center overflow-hidden">
+                  {!capturedImage ? (
+                      <>
+                        <video 
+                            ref={videoRef} 
+                            autoPlay 
+                            playsInline 
+                            className="absolute inset-0 w-full h-full object-cover"
+                        ></video>
+                        {/* Overlay Guide */}
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                            <div className="w-[80%] h-[60%] border-2 border-white/50 rounded-2xl relative">
+                                <div className="absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 border-emerald-500 rounded-tl-xl"></div>
+                                <div className="absolute -top-1 -right-1 w-6 h-6 border-t-4 border-r-4 border-emerald-500 rounded-tr-xl"></div>
+                                <div className="absolute -bottom-1 -left-1 w-6 h-6 border-b-4 border-l-4 border-emerald-500 rounded-bl-xl"></div>
+                                <div className="absolute -bottom-1 -right-1 w-6 h-6 border-b-4 border-r-4 border-emerald-500 rounded-br-xl"></div>
+                            </div>
+                        </div>
+                      </>
+                  ) : (
+                      <img src={capturedImage} alt="Captured" className="w-full h-full object-contain" />
+                  )}
+              </div>
+
+              {/* Controls */}
+              <div className="p-6 bg-black/80 backdrop-blur text-white flex flex-col gap-4">
+                  {!capturedImage ? (
+                      <div className="flex justify-center">
+                          <button 
+                            onClick={captureImage} 
+                            className="w-20 h-20 rounded-full border-4 border-white flex items-center justify-center hover:bg-white/20 transition-all"
+                          >
+                              <div className="w-16 h-16 bg-white rounded-full"></div>
+                          </button>
+                      </div>
+                  ) : (
+                      <div className="flex gap-4">
+                          <button 
+                            onClick={() => { setCapturedImage(null); startCamera(); }}
+                            className="flex-1 py-3 bg-slate-700 rounded-xl font-bold"
+                          >
+                              إعادة التصوير
+                          </button>
+                          <button 
+                            onClick={analyzeReceipt}
+                            disabled={isScanning}
+                            className="flex-1 py-3 bg-emerald-600 rounded-xl font-bold flex items-center justify-center gap-2"
+                          >
+                              {isScanning ? <Loader2 className="animate-spin" /> : <ScanLine size={20} />}
+                              {isScanning ? 'جاري التحليل...' : 'تحليل الفاتورة'}
+                          </button>
+                      </div>
+                  )}
+                  <p className="text-center text-xs text-slate-400">
+                      سيقوم الذكاء الاصطناعي باستخراج اسم المتجر، المبلغ، والتاريخ تلقائياً.
+                  </p>
               </div>
           </div>
       )}
