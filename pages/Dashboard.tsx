@@ -1,5 +1,5 @@
 
-
+// ... existing imports ...
 import React, { useMemo, useState, useEffect } from 'react';
 import { Transaction, Loan, UserSettings, BankCard, TransactionType } from '../types';
 import { 
@@ -399,44 +399,63 @@ const Dashboard: React.FC<DashboardProps> = ({
   return (
     <div className="space-y-6 relative pb-20 md:pb-0">
       
-      {/* Modern Time & Date Hero Card */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-indigo-700 via-violet-700 to-fuchsia-800 dark:from-slate-800 dark:via-slate-900 dark:to-black rounded-[2.5rem] p-6 md:p-8 text-white shadow-2xl mb-2 transition-all duration-500">
+      {/* Modern Time & Date Hero Card - Compact & Optimized */}
+      <div className="relative overflow-hidden bg-gradient-to-br from-indigo-700 via-violet-700 to-fuchsia-800 dark:from-slate-800 dark:via-slate-900 dark:to-black rounded-[2rem] p-6 py-8 md:px-10 md:py-12 text-white shadow-2xl mb-2 transition-all duration-500">
            
            {/* Animated Background Blobs */}
            <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none animate-pulse"></div>
            <div className="absolute bottom-0 left-0 w-48 h-48 bg-emerald-500/20 rounded-full blur-3xl -ml-10 -mb-10 pointer-events-none"></div>
 
-           <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-6 md:gap-0">
-              {/* Right Side: Greeting & Date (RTL UI) */}
-              <div className="text-center md:text-right flex flex-col items-center md:items-start order-2 md:order-1">
-                 <div className="flex items-center gap-2 mb-2 bg-white/20 backdrop-blur-md px-3 py-1 rounded-full text-xs font-medium text-white/90 shadow-sm border border-white/10">
+           <div className="relative z-10 flex justify-between items-center">
+              {/* Right Side: Greeting */}
+              <div className="flex flex-col items-start justify-center max-w-[60%]">
+                 {/* Desktop Date Badge */}
+                 <div className="hidden md:flex items-center gap-2 mb-2 bg-white/20 backdrop-blur-md px-3 py-1 rounded-full text-xs font-medium text-white/90 shadow-sm border border-white/10">
                     <Calendar size={14} />
                     <span>{formattedDate}</span>
                  </div>
-                 <h2 className="text-3xl md:text-4xl font-bold mb-1 leading-tight tracking-tight drop-shadow-sm">
+                 
+                 <h2 className="text-[1.2rem] md:text-4xl font-bold mb-1 leading-tight tracking-tight drop-shadow-sm text-white">
                     {greeting}، عمر <span className="animate-wave inline-block origin-bottom-right">👋</span>
                  </h2>
-                 <p className="text-indigo-100 dark:text-slate-400 text-sm md:text-base opacity-90 font-medium">نتمنى لك يوماً مالياً ناجحاً!</p>
                  
-                 {/* Integrated AI Button */}
+                 {/* Mobile AI Button (Compact) */}
                  <button 
                     onClick={handleAiConsult}
                     disabled={isLoadingAi}
-                    className="mt-6 flex items-center gap-2 bg-white text-indigo-700 dark:bg-[#bef264] dark:text-slate-900 px-5 py-2.5 rounded-xl font-bold text-sm hover:scale-105 active:scale-95 transition-transform shadow-lg"
+                    className="md:hidden mt-2 flex items-center gap-1 bg-white/20 backdrop-blur-md px-3 py-1.5 rounded-lg text-xs font-bold text-white hover:bg-white/30 transition-colors border border-white/10"
                  >
-                    <Sparkles size={16} className={isLoadingAi ? "animate-spin" : ""} />
-                    <span>{isLoadingAi ? 'جاري التحليل...' : 'تحليل مالي ذكي'}</span>
+                    <Sparkles size={12} className={isLoadingAi ? "animate-spin" : ""} />
+                    <span>{isLoadingAi ? '...' : 'تحليل'}</span>
                  </button>
+
+                 {/* Desktop Only Extra Info & Button */}
+                 <div className="hidden md:block">
+                    <p className="text-indigo-100 dark:text-slate-400 text-base opacity-90 font-medium mt-1">نتمنى لك يوماً مالياً ناجحاً!</p>
+                    <button 
+                        onClick={handleAiConsult}
+                        disabled={isLoadingAi}
+                        className="mt-6 flex items-center gap-2 bg-white text-indigo-700 dark:bg-[#bef264] dark:text-slate-900 px-5 py-2.5 rounded-xl font-bold text-sm hover:scale-105 active:scale-95 transition-transform shadow-lg"
+                    >
+                        <Sparkles size={16} className={isLoadingAi ? "animate-spin" : ""} />
+                        <span>{isLoadingAi ? 'جاري التحليل...' : 'تحليل مالي ذكي'}</span>
+                    </button>
+                 </div>
               </div>
 
-              {/* Left Side: Digital Clock (RTL UI -> Displays on Left visually in LTR Flex if row-reversed, but here flex-row standard with RTL dir puts first item right. We want clock on Left visually for RTL users, so it's 'end' of flex) */}
-              {/* Actually for RTL: flex-row puts first child on right. So Greeting is Right. Clock is Left. Correct. */}
-              <div className="flex flex-col items-center justify-center order-1 md:order-2 dir-ltr">
-                 <div className="flex items-baseline text-white drop-shadow-md" dir="ltr">
-                    <span className="text-7xl md:text-8xl font-bold tracking-tighter font-sans">{formattedTime[0]}</span>
-                    <span className="text-xl md:text-2xl font-medium ml-2 uppercase text-indigo-200 dark:text-slate-400">{formattedTime[1]}</span>
+              {/* Left Side: Clock & Date (Compact/Responsive) */}
+              <div className="flex flex-col items-end md:items-end text-left" dir="ltr">
+                 <div className="flex items-baseline text-white drop-shadow-md leading-none">
+                    <span className="text-[1.2rem] md:text-7xl font-bold font-sans tracking-tight">{formattedTime[0]}</span>
+                    <span className="text-[0.8rem] md:text-2xl font-medium ml-1 uppercase text-indigo-200 dark:text-slate-400">{formattedTime[1]}</span>
                  </div>
-                 <div className="flex items-center gap-2 text-indigo-200 dark:text-slate-500 text-sm font-medium mt-[-5px]">
+                 
+                 {/* Mobile Date under clock */}
+                 <div className="md:hidden text-[0.7rem] text-indigo-100 font-medium mt-1 opacity-90 text-right w-full" dir="rtl">
+                    {formattedDate}
+                 </div>
+
+                 <div className="hidden md:flex items-center gap-2 text-indigo-200 dark:text-slate-500 text-sm font-medium mt-1">
                     <Clock size={14} />
                     <span>توقيت محلي</span>
                  </div>
