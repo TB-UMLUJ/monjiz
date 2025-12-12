@@ -1,4 +1,5 @@
 
+
 import React, { useMemo, useState, useEffect } from 'react';
 import { Transaction, Loan, UserSettings, BankCard, TransactionType } from '../types';
 import { 
@@ -23,7 +24,9 @@ import {
   BarChart3,
   CreditCard,
   MoreHorizontal,
-  Info
+  Info,
+  Calendar,
+  Clock
 } from 'lucide-react';
 import { getFinancialAdvice, parseTransactionFromSMS } from '../services/geminiService';
 import { storageService } from '../services/storage';
@@ -51,6 +54,14 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [isLoadingAi, setIsLoadingAi] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [activeCardIndex, setActiveCardIndex] = useState(0);
+
+  // Clock State
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Touch State for Swiping
   const [touchStart, setTouchStart] = useState<number | null>(null);
@@ -313,13 +324,14 @@ const Dashboard: React.FC<DashboardProps> = ({
       const targetCard = targetCardIndex >= 0 ? settings.cards[targetCardIndex] : undefined;
 
       // 3. Create Transaction with Enhanced Fields
+      const notePrefix = parsedData.type === TransactionType.EXPENSE ? 'إلى:' : 'من:';
       const newTx: Transaction = {
         id: '',
         amount: parsedData.amount,
         type: parsedData.type,
         category: parsedData.category,
         date: parsedData.date || new Date().toISOString(),
-        note: `من: ${parsedData.merchant}`,
+        note: `${notePrefix} ${parsedData.merchant}`,
         merchant: parsedData.merchant,
         fee: parsedData.fee,
         balanceAfter: parsedData.newBalance || undefined,
@@ -379,32 +391,62 @@ const Dashboard: React.FC<DashboardProps> = ({
     }
   };
 
+  // Clock Formatters
+  const formattedTime = currentTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).split(' ');
+  const formattedDate = currentTime.toLocaleDateString('ar-SA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const greeting = currentTime.getHours() < 12 ? 'صباح الخير' : 'مساء الخير';
 
   return (
     <div className="space-y-6 relative pb-20 md:pb-0">
       
-      {/* Page Title & AI Action */}
-      <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-4 mb-2">
-        <div>
-           <h2 className="text-2xl md:text-3xl font-bold text-eerie-black dark:text-white">نظرة عامة</h2>
-           <p className="text-sm md:text-base text-slate-500 dark:text-slate-400 mt-1">مرحباً عمر، إليك ملخص وضعك المالي اليوم.</p>
-        </div>
-        
-        <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
-          <button 
-             onClick={handleAiConsult}
-             disabled={isLoadingAi}
-             className="flex items-center justify-center gap-2 bg-emerald-600 dark:bg-[#bef264] text-white dark:text-slate-900 px-5 py-3 rounded-xl hover:bg-emerald-700 dark:hover:bg-[#a3e635] transition-all shadow-lg shadow-emerald-600/20 disabled:opacity-70 font-bold w-full md:w-auto"
-          >
-             <Sparkles size={18} className={isLoadingAi ? "animate-spin" : "text-emerald-100 dark:text-slate-900"} />
-             <span>{isLoadingAi ? 'جاري التحليل...' : 'تحليل مالي'}</span>
-          </button>
-        </div>
+      {/* Modern Time & Date Hero Card */}
+      <div className="relative overflow-hidden bg-gradient-to-br from-indigo-700 via-violet-700 to-fuchsia-800 dark:from-slate-800 dark:via-slate-900 dark:to-black rounded-[2.5rem] p-6 md:p-8 text-white shadow-2xl mb-2 transition-all duration-500">
+           
+           {/* Animated Background Blobs */}
+           <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none animate-pulse"></div>
+           <div className="absolute bottom-0 left-0 w-48 h-48 bg-emerald-500/20 rounded-full blur-3xl -ml-10 -mb-10 pointer-events-none"></div>
+
+           <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-6 md:gap-0">
+              {/* Right Side: Greeting & Date (RTL UI) */}
+              <div className="text-center md:text-right flex flex-col items-center md:items-start order-2 md:order-1">
+                 <div className="flex items-center gap-2 mb-2 bg-white/20 backdrop-blur-md px-3 py-1 rounded-full text-xs font-medium text-white/90 shadow-sm border border-white/10">
+                    <Calendar size={14} />
+                    <span>{formattedDate}</span>
+                 </div>
+                 <h2 className="text-3xl md:text-4xl font-bold mb-1 leading-tight tracking-tight drop-shadow-sm">
+                    {greeting}، عمر <span className="animate-wave inline-block origin-bottom-right">👋</span>
+                 </h2>
+                 <p className="text-indigo-100 dark:text-slate-400 text-sm md:text-base opacity-90 font-medium">نتمنى لك يوماً مالياً ناجحاً!</p>
+                 
+                 {/* Integrated AI Button */}
+                 <button 
+                    onClick={handleAiConsult}
+                    disabled={isLoadingAi}
+                    className="mt-6 flex items-center gap-2 bg-white text-indigo-700 dark:bg-[#bef264] dark:text-slate-900 px-5 py-2.5 rounded-xl font-bold text-sm hover:scale-105 active:scale-95 transition-transform shadow-lg"
+                 >
+                    <Sparkles size={16} className={isLoadingAi ? "animate-spin" : ""} />
+                    <span>{isLoadingAi ? 'جاري التحليل...' : 'تحليل مالي ذكي'}</span>
+                 </button>
+              </div>
+
+              {/* Left Side: Digital Clock (RTL UI -> Displays on Left visually in LTR Flex if row-reversed, but here flex-row standard with RTL dir puts first item right. We want clock on Left visually for RTL users, so it's 'end' of flex) */}
+              {/* Actually for RTL: flex-row puts first child on right. So Greeting is Right. Clock is Left. Correct. */}
+              <div className="flex flex-col items-center justify-center order-1 md:order-2 dir-ltr">
+                 <div className="flex items-baseline text-white drop-shadow-md" dir="ltr">
+                    <span className="text-7xl md:text-8xl font-bold tracking-tighter font-sans">{formattedTime[0]}</span>
+                    <span className="text-xl md:text-2xl font-medium ml-2 uppercase text-indigo-200 dark:text-slate-400">{formattedTime[1]}</span>
+                 </div>
+                 <div className="flex items-center gap-2 text-indigo-200 dark:text-slate-500 text-sm font-medium mt-[-5px]">
+                    <Clock size={14} />
+                    <span>توقيت محلي</span>
+                 </div>
+              </div>
+           </div>
       </div>
 
-      {/* AI Advice Banner */}
+      {/* AI Advice Banner (Conditional) */}
       {aiAdvice && (
-        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-6 rounded-3xl text-white shadow-xl animate-fade-in relative overflow-hidden">
+        <div className="bg-gradient-to-r from-emerald-600 to-teal-600 p-6 rounded-3xl text-white shadow-xl animate-fade-in relative overflow-hidden">
           <div className="relative z-10">
              <div className="flex items-center gap-2 mb-2 opacity-90">
                 <Sparkles size={18} />

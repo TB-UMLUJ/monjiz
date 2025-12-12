@@ -319,16 +319,17 @@ export const parseTransactionFromSMS = async (smsText: string): Promise<ParsedSM
       **Instructions**:
       1. Analyze the "Input SMS" below.
       2. Match it to one of the "types" in the schema.
-      3. Extract values for the fields defined (e.g., amount, date, merchant, fee, balance, transaction number, card number, country, payment method).
+      3. Extract values for the fields defined.
       4. Map the extracted data to the following JSON output format:
 
       **Output JSON Format**:
       {
         "amount": number, (Numeric value of the main transaction amount)
-        "merchant": string, (The other party name: Seller, Sender, Recipient, or 'Bank')
+        "merchant": string, (The OTHER party name. IMPORTANT: For 'outgoing transfers' (حوالة صادرة), this is the RECIPIENT (To/إلى). For 'incoming transfers' (حوالة واردة), this is the SENDER (From/من). For purchases, it's the Seller (لدى).)
         "category": string, (Infer category: 'Shopping', 'Transfer', 'Bills', 'Food', 'Income', 'Credit Card Payment')
         "cardLast4": string, (Last 4 digits of card or account if found in 'fields' like 'آخر 4 أرقام البطاقة')
-        "date": string, (ISO 8601 format YYYY-MM-DDTHH:mm:ss, assume current year if missing)
+        "date_part": string, (YYYY-MM-DD format. If year is simplified like '25', interpret as '2025'.)
+        "time_part": string, (HH:mm:ss in 24-hour format. Example: '21:30:00'. Ensure strict 24h format from the message. If no seconds, append :00.)
         "type": "income" | "expense", (See Logic below)
         "fee": number, (Transaction fee if present, else 0)
         "newBalance": number | null, (The balance *after* transaction if present)
@@ -361,7 +362,27 @@ export const parseTransactionFromSMS = async (smsText: string): Promise<ParsedSM
     const text = response.text;
     if (!text) return null;
     
-    return JSON.parse(text) as ParsedSMS;
+    const parsed = JSON.parse(text);
+
+    // Reconstruct ISO date locally to prevent timezone shifting by AI
+    let dateIsoString = new Date().toISOString();
+    if (parsed.date_part && parsed.time_part) {
+        // Create date string in local time format without 'Z' (e.g. "2025-12-07T21:28:00")
+        const localDateTimeString = `${parsed.date_part}T${parsed.time_part}`;
+        // This Date object is created in the user's browser timezone
+        const dateObj = new Date(localDateTimeString);
+        // Convert to ISO string (which will be UTC, preserving the moment in time)
+        // e.g. Input "21:28", User in KSA (+3) -> Date Object is 21:28 KSA -> ISO is 18:28 UTC.
+        // When displayed back using .toLocaleString(), it will show 21:28 KSA.
+        if (!isNaN(dateObj.getTime())) {
+            dateIsoString = dateObj.toISOString();
+        }
+    }
+
+    return {
+        ...parsed,
+        date: dateIsoString
+    } as ParsedSMS;
 
   } catch (error) {
     console.error("Gemini SMS Parse Error", error);

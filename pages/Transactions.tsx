@@ -286,13 +286,14 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
          }
 
          // Enhanced Transaction Object
+         const notePrefix = parsed.type === TransactionType.EXPENSE ? 'إلى:' : 'من:';
          const newTx: Transaction = {
             id: '',
             amount: mainAmount,
             type: parsed.type,
             category: parsed.category,
             date: parsed.date || new Date().toISOString(),
-            note: `من: ${parsed.merchant}`, // Use "From:" as requested
+            note: `${notePrefix} ${parsed.merchant}`, // Use Correct prefix
             cardId: matchedCardId || undefined,
             // New Fields
             merchant: parsed.merchant,
@@ -312,7 +313,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
          setShowSmartModal(false);
          setSmartSmsText('');
 
-         showSuccess(`تم إضافة العملية`, `تم تسجيل "${parsed.merchant}" بنجاح على ${cardName}`);
+         showSuccess(`تم إضافة العملية`, `تم تسجيل "${parsed.merchant}" بقيمة ${parsed.amount} ريال على ${cardName}`);
 
       } else {
          notify('لم نتمكن من تحليل النص، يرجى التأكد من الصيغة', 'warning');
