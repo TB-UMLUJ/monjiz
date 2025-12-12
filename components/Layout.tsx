@@ -16,7 +16,8 @@ import {
   Clock,
   CheckCircle2,
   Moon,
-  Sun
+  Sun,
+  Sparkles
 } from 'lucide-react';
 import { UserSettings, Loan, Bill } from '../types';
 import { getBillSchedule } from '../services/loanCalculator';
@@ -30,6 +31,7 @@ interface LayoutProps {
   loans?: Loan[]; // Pass loans for notifications
   bills?: Bill[]; // Pass bills for notifications
   onThemeToggle?: () => void; // New prop for theme toggling
+  onSmartRecord?: () => void; // New prop to trigger smart record modal
 }
 
 interface NotificationItem {
@@ -40,7 +42,7 @@ interface NotificationItem {
   type: 'alert' | 'warning' | 'info' | 'success';
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLogout, settings, loans = [], bills = [], onThemeToggle }) => {
+const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLogout, settings, loans = [], bills = [], onThemeToggle, onSmartRecord }) => {
   const [showNotifications, setShowNotifications] = useState(false);
 
   // --- Dynamic Notifications Logic ---
@@ -139,6 +141,12 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
     { id: 'settings', label: 'الإعدادات', icon: Settings },
   ];
 
+  // Mobile Menu Logic: Split items to place button in middle
+  // We remove 'settings' from the bottom bar to make space (it's accessible via top header)
+  const mobileMenuItems = menuItems.filter(item => item.id !== 'settings');
+  const leftItems = mobileMenuItems.slice(0, 2);
+  const rightItems = mobileMenuItems.slice(2, 4);
+
   const handleLogoutClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault();
     onLogout();
@@ -223,9 +231,6 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col min-w-0 relative overflow-hidden">
         
-        {/* Decorative Glow Effect - Adjusted per request to match top-right feel but on top-left */}
-        <div className="absolute top-[-100px] left-[-100px] w-[400px] h-[400px] bg-[#bef264] rounded-full blur-[120px] opacity-25 dark:opacity-20 pointer-events-none z-0"></div>
-
         {/* Top Header */}
         <header className="px-4 md:px-8 py-5 flex items-center justify-between bg-ghost-white/80 dark:bg-slate-900/80 backdrop-blur-md md:bg-transparent sticky top-0 z-30 md:static border-b md:border-none border-slate-100 dark:border-slate-800 transition-colors">
            <div className="md:hidden flex items-center pt-2">
@@ -257,7 +262,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
 
            {/* Right Actions */}
            <div className="flex items-center gap-3 md:gap-5 relative z-20">
-              {/* Theme Toggle (Replacement for Privacy Toggle) */}
+              {/* Theme Toggle */}
               <button 
                 onClick={onThemeToggle}
                 className={`w-10 h-10 rounded-full flex items-center justify-center border transition-all ${isDark ? 'bg-slate-800 border-slate-700 text-yellow-400' : 'bg-white border-slate-200 text-slate-500'}`}
@@ -315,10 +320,10 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
               
               <a
                 href="#"
-                onClick={handleLogoutClick} 
-                className="md:hidden w-10 h-10 rounded-full bg-slate-50 hover:bg-rose-50 text-slate-600 hover:text-rose-500 dark:bg-slate-800 dark:hover:bg-rose-900/20 dark:text-slate-400 dark:hover:text-rose-400 flex items-center justify-center transition-colors shadow-sm relative z-[60] cursor-pointer active:scale-90"
+                onClick={(e) => { e.preventDefault(); onTabChange('settings'); }} 
+                className="md:hidden w-10 h-10 rounded-full bg-white dark:bg-slate-800 flex items-center justify-center transition-colors shadow-sm relative z-[60] cursor-pointer border border-slate-200 dark:border-slate-700"
               >
-                <LogOut size={20} />
+                <Settings size={20} className="text-slate-600 dark:text-slate-300"/>
               </a>
            </div>
         </header>
@@ -329,32 +334,53 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
         </div>
       </main>
 
-      {/* Mobile Bottom Floating Nav - Redesigned with Glass Effect */}
-      <nav className="md:hidden fixed bottom-4 inset-x-4 h-16 bg-white/70 dark:bg-slate-900/80 backdrop-blur-lg rounded-full shadow-2xl z-50 p-2 flex justify-around items-center border border-slate-200 dark:border-slate-700">
-        {menuItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = activeTab === item.id;
-          return (
+      {/* Mobile Bottom Floating Nav - Enhanced with Central Floating Button */}
+      <nav className="md:hidden fixed bottom-6 inset-x-6 h-16 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl rounded-2xl shadow-2xl shadow-slate-200/50 dark:shadow-black/50 z-50 px-2 flex justify-between items-center border border-slate-100 dark:border-slate-800">
+        
+        {/* Left Items */}
+        <div className="flex-1 flex justify-around">
+            {leftItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => onTabChange(item.id)}
+                  className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all ${isActive ? 'text-emerald-600 dark:text-[#bef264] bg-emerald-50 dark:bg-[#bef264]/10' : 'text-slate-400 dark:text-slate-500'}`}
+                >
+                  <Icon size={22} strokeWidth={isActive ? 2.5 : 2} />
+                </button>
+              );
+            })}
+        </div>
+
+        {/* Center Floating Action Button (Elevated) */}
+        <div className="relative -top-8 mx-2">
             <button
-              key={item.id}
-              onClick={() => onTabChange(item.id)}
-              className="flex-1 h-full flex justify-center items-center rounded-full"
-              aria-label={item.label}
-              aria-current={isActive ? 'page' : undefined}
+              onClick={onSmartRecord}
+              className="w-16 h-16 bg-gradient-to-tr from-emerald-600 to-teal-500 dark:from-[#bef264] dark:to-lime-500 rounded-full shadow-[0_8px_16px_rgba(16,185,129,0.3)] dark:shadow-[0_8px_16px_rgba(190,242,100,0.3)] flex items-center justify-center border-4 border-ghost-white dark:border-slate-950 transform transition-transform active:scale-95 hover:scale-110 z-50 group"
             >
-              {isActive ? (
-                <div className="flex items-center justify-center gap-2 rounded-full transition-all duration-300 ease-out bg-emerald-600 dark:bg-[#bef264] text-white dark:text-slate-900 px-5 py-2.5 shadow-md">
-                  <Icon size={20} strokeWidth={2.5} />
-                  <span className="text-sm font-bold whitespace-nowrap animate-fade-in">{item.label}</span>
-                </div>
-              ) : (
-                <div className="flex items-center justify-center rounded-full w-12 h-12 text-slate-500 dark:text-slate-300 transition-colors">
-                  <Icon size={24} strokeWidth={2} />
-                </div>
-              )}
+               <Sparkles size={28} className="text-white dark:text-slate-900 animate-pulse group-hover:rotate-12 transition-transform" />
             </button>
-          );
-        })}
+        </div>
+
+        {/* Right Items */}
+        <div className="flex-1 flex justify-around">
+            {rightItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => onTabChange(item.id)}
+                  className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all ${isActive ? 'text-emerald-600 dark:text-[#bef264] bg-emerald-50 dark:bg-[#bef264]/10' : 'text-slate-400 dark:text-slate-500'}`}
+                >
+                  <Icon size={22} strokeWidth={isActive ? 2.5 : 2} />
+                </button>
+              );
+            })}
+        </div>
+
       </nav>
     </div>
   );

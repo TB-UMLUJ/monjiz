@@ -416,13 +416,20 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                          <h4 className="font-bold text-slate-800 dark:text-slate-200 text-sm md:text-base truncate">{tx.merchant || tx.category}</h4>
-                          {tx.operationKind && <span className="text-[10px] bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-slate-500">{tx.operationKind}</span>}
+                          <h4 className="font-bold text-slate-800 dark:text-slate-200 text-sm md:text-base leading-snug">
+                              {tx.merchant ? tx.merchant : (tx.note || tx.category)}
+                          </h4>
+                          {tx.operationKind && <span className="text-[10px] bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-slate-500 whitespace-nowrap shrink-0">{tx.operationKind}</span>}
                       </div>
                       
-                      <div className="flex items-center gap-2 text-xs text-slate-400 whitespace-normal mt-0.5">
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400 mt-1">
                          <span>{new Date(tx.date).toLocaleDateString('en-GB')}</span>
-                         {(tx.merchant && tx.category) && <span>• {tx.category}</span>}
+                         {tx.category && (tx.category !== (tx.merchant || tx.note)) && (
+                             <span className="flex items-center gap-1 bg-slate-50 dark:bg-slate-800 px-1.5 py-0.5 rounded text-[10px]">
+                                {tx.category}
+                             </span>
+                         )}
+                         {(tx.merchant && tx.note) && <span className="text-slate-500 dark:text-slate-500 line-clamp-1">• {tx.note}</span>}
                       </div>
                       
                       {tx.cardId && (
@@ -655,7 +662,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
                         <span className={`text-xs font-bold px-2 py-1 rounded-full ${selectedTx.type === TransactionType.INCOME ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'}`}>
                             {selectedTx.type === TransactionType.INCOME ? 'دخل' : 'مصروف'}
                         </span>
-                        <h3 className="font-bold text-2xl text-slate-800 dark:text-white mt-2">{selectedTx.merchant || selectedTx.category}</h3>
+                        <h3 className="font-bold text-2xl text-slate-800 dark:text-white mt-2 leading-snug">{selectedTx.merchant || selectedTx.category}</h3>
                         <p className="text-xs text-slate-500 mt-1">{selectedTx.operationKind || selectedTx.category}</p>
                     </div>
                     <button onClick={() => { setSelectedTx(null); setShowDeleteConfirm(false); }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-500"><X size={20}/></button>
@@ -712,7 +719,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, setTransactio
                      {selectedTx.note && (
                         <div className="text-sm bg-amber-50 dark:bg-amber-900/10 p-3 rounded-lg border border-amber-100 dark:border-amber-900/30">
                             <p className="text-amber-800 dark:text-amber-500 font-bold text-xs mb-1">ملاحظة</p>
-                            <p className="text-slate-700 dark:text-slate-300">{selectedTx.note}</p>
+                            <p className="text-slate-700 dark:text-slate-300 leading-relaxed">{selectedTx.note}</p>
                         </div>
                      )}
                 </div>

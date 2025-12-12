@@ -1133,11 +1133,11 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                                      {renderIcon(loan.icon)}
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <div className="flex justify-between items-start">
-                                        <h3 className="font-bold text-lg text-slate-800 dark:text-white truncate">{loan.name}</h3>
-                                        <span className={`text-[10px] px-2 py-1 rounded-full ${loan.status === 'active' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-slate-100 text-slate-500'}`}>{loan.status === 'active' ? 'نشط' : 'منتهي'}</span>
+                                    <div className="flex justify-between items-start gap-2">
+                                        <h3 className="font-bold text-lg text-slate-800 dark:text-white leading-snug">{loan.name}</h3>
+                                        <span className={`text-[10px] px-2 py-1 rounded-full shrink-0 ${loan.status === 'active' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-slate-100 text-slate-500'}`}>{loan.status === 'active' ? 'نشط' : 'منتهي'}</span>
                                     </div>
-                                    <p className="text-xs text-slate-400 truncate">{loan.description || 'تمويل شخصي'}</p>
+                                    <p className="text-xs text-slate-400 leading-relaxed mt-1">{loan.description || 'تمويل شخصي'}</p>
                                 </div>
                             </div>
 
@@ -1290,11 +1290,11 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                               {getBillIcon(bill.type, bill.provider, bill.icon)}
                           </div>
                           <div className="flex-1 min-w-0">
-                              <div className="flex justify-between items-start">
-                                  <h3 className="font-bold text-lg text-slate-800 dark:text-white truncate">{bill.name}</h3>
-                                  <span className={`text-[10px] px-2 py-1 rounded-full ${statusColor}`}>{statusLabel}</span>
+                              <div className="flex justify-between items-start gap-2">
+                                  <h3 className="font-bold text-lg text-slate-800 dark:text-white leading-snug">{bill.name}</h3>
+                                  <span className={`text-[10px] px-2 py-1 rounded-full shrink-0 ${statusColor}`}>{statusLabel}</span>
                               </div>
-                              <p className="text-xs text-slate-400 truncate">{bill.description || bill.provider}</p>
+                              <p className="text-xs text-slate-400 leading-relaxed mt-1">{bill.description || bill.provider}</p>
                           </div>
                       </div>
 
