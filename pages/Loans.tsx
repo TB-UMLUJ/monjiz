@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Loan, LoanType, Bill, EntityLogo, Transaction, TransactionType, UserSettings, BillScheduleItem } from '../types';
 import { calculateLoanSchedule, calculateDurationInMonths, getBillSchedule } from '../services/loanCalculator';
@@ -220,6 +219,41 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
       }
       storageService.getLogos().then(setKnownLogos);
   }, [activeTab]);
+
+  // --- NEW: AUTO ARCHIVE LOGIC ---
+  useEffect(() => {
+      const checkAutoArchive = async () => {
+          // Identify candidates: Active bills that are NOT subscriptions and have a definite end
+          const candidates = bills.filter(b => 
+              b.status === 'active' && 
+              !b.isSubscription && 
+              (b.durationMonths || b.totalDebt || b.endDate)
+          );
+
+          if (candidates.length === 0) return;
+
+          let updatedCount = 0;
+          for (const bill of candidates) {
+              const schedule = getBillSchedule(bill);
+              // Check if schedule exists and ALL items are marked paid
+              if (schedule.length > 0 && schedule.every(s => s.isPaid)) {
+                  // Perform Update
+                  await storageService.updateBill({ ...bill, status: 'archived' });
+                  updatedCount++;
+              }
+          }
+
+          if (updatedCount > 0) {
+              const freshBills = await storageService.getBills();
+              setBills(freshBills);
+              notify(`تم نقل ${updatedCount} التزامات مكتملة للأرشيف تلقائياً`, 'success');
+          }
+      };
+
+      if (bills.length > 0) {
+          checkAutoArchive();
+      }
+  }, [bills]); 
 
   // Auto-detect Logo for Loan
   useEffect(() => {
@@ -751,6 +785,10 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                    if (paymentModal.scheduleItem) {
                        const dateStr = paymentModal.scheduleItem.date.toISOString().split('T')[0];
                        bill.paidDates = (bill.paidDates || []).filter(d => d !== dateStr);
+                       
+                       // Ensure status is active if we refund
+                       if (bill.status === 'archived') bill.status = 'active';
+
                        await storageService.updateBill(bill);
                        setBills(await storageService.getBills());
                        if (selectedBill?.id === bill.id) setSelectedBill({...bill});
@@ -814,6 +852,16 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                       const newPaid = [...new Set([...currentPaid, ...selectedScheduleItems])];
                       bill.paidDates = newPaid;
                       
+                      // Auto-Archive Logic for Bulk Bills
+                      const tempBill = {...bill, paidDates: newPaid};
+                      const freshSchedule = getBillSchedule(tempBill);
+                      const hasDuration = bill.durationMonths || bill.totalDebt || bill.endDate;
+                      const allPaid = freshSchedule.every(s => s.isPaid);
+                      if (hasDuration && allPaid) {
+                          bill.status = 'archived';
+                          notify('تم سداد كامل الفاتورة ونقلها للأرشيف', 'success');
+                      }
+
                       await storageService.updateBill(bill);
                       setBills(await storageService.getBills());
                       if (selectedBill?.id === bill.id) setSelectedBill({...bill});
@@ -853,13 +901,28 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                       if (selectedLoan?.id === loan.id) setSelectedLoan(updatedLoans.find(l=>l.id===loan.id) || null);
                   }
               }
-              // NEW: Update Bill State (Pay)
+              // NEW: Update Bill State (Pay) with Auto-Archive
               else if (paymentModal.type === 'bill' && paymentModal.scheduleItem) {
                   const bill = paymentModal.item as Bill;
                   const dateStr = paymentModal.scheduleItem.date.toISOString().split('T')[0];
                   const currentPaid = bill.paidDates || [];
                   if (!currentPaid.includes(dateStr)) {
-                      bill.paidDates = [...currentPaid, dateStr];
+                      const newPaid = [...currentPaid, dateStr];
+                      bill.paidDates = newPaid;
+
+                      // Check for Auto-Archive (If installment plan is fully paid)
+                      const tempBill = {...bill, paidDates: newPaid};
+                      const freshSchedule = getBillSchedule(tempBill);
+                      const hasDuration = bill.durationMonths || bill.totalDebt || bill.endDate;
+                      // Don't auto-archive subscriptions or perpetual bills
+                      if (hasDuration && !bill.isSubscription) {
+                          const allPaid = freshSchedule.every(s => s.isPaid);
+                          if (allPaid) {
+                              bill.status = 'archived';
+                              notify('تم سداد كامل الالتزام ونقله للأرشيف', 'success');
+                          }
+                      }
+
                       await storageService.updateBill(bill);
                       setBills(await storageService.getBills());
                       if (selectedBill?.id === bill.id) setSelectedBill({...bill}); 
@@ -1104,7 +1167,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                 <button onClick={() => { setShowAddModal(true); setIsEditing(false); setEditingLoanId(null); setNewLoan({ name: '', description: '', amount: '', rate: '', duration: '', startDate: new Date().toISOString().split('T')[0], type: LoanType.DECREASING, contractPdf: '', initialPaidAmount: '', customMonthlyPayment: '', lastPaymentAmount: '', icon: '' }); setManualSchedule([]); }} className="flex items-center justify-center gap-2 bg-emerald-600 text-white px-3 py-2 rounded-lg text-sm font-bold shadow-lg"><Plus size={16}/><span>إضافة قرض</span></button>
             </div>
             
-          {loans.length > 1 && (
+          {loans.filter(l => l.status === 'active').length > 1 && (
               <div className="mb-6 p-4 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl text-white shadow-lg flex justify-between items-center">
                   <div>
                       <h4 className="font-bold text-lg flex items-center gap-2"><TrendingDown/> استراتيجية السداد المقترحة</h4>
@@ -1116,7 +1179,7 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {loans.map(loan => {
+                {loans.filter(l => l.status === 'active').map(loan => {
                     const paid = loan.schedule.filter(s => s.isPaid).reduce((a,c)=>a+c.paymentAmount,0);
                     const total = loan.schedule.reduce((a,c)=>a+c.paymentAmount,0);
                     const remaining = total - paid;
@@ -1194,9 +1257,11 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
       </>
       ) : (
       <div className="space-y-6">
-          <div className="flex justify-end mb-4">
-              <button onClick={() => { setShowAddBillModal(true); setEditingBillId(null); setNewBill({ provider: '', type: 'electricity', amount: '', hasEndDate: false, endDate: '', deviceDetails: '', startDate: '', duration: '', lastAmount: '', downPayment: '', totalDebt: '', endDateMode: 'months', isSubscription: false, renewalDate: '', customSchedule: undefined, icon: '', description: '' }); }} className="flex items-center justify-center gap-2 bg-emerald-600 text-white px-3 py-2 rounded-lg text-sm font-bold shadow-lg"><Plus size={16}/><span>إضافة جديد</span></button>
-          </div>
+          {activeTab !== 'archive' && (
+              <div className="flex justify-end mb-4">
+                  <button onClick={() => { setShowAddBillModal(true); setEditingBillId(null); setNewBill({ provider: '', type: 'electricity', amount: '', hasEndDate: false, endDate: '', deviceDetails: '', startDate: '', duration: '', lastAmount: '', downPayment: '', totalDebt: '', endDateMode: 'months', isSubscription: false, renewalDate: '', customSchedule: undefined, icon: '', description: '' }); }} className="flex items-center justify-center gap-2 bg-emerald-600 text-white px-3 py-2 rounded-lg text-sm font-bold shadow-lg"><Plus size={16}/><span>إضافة جديد</span></button>
+              </div>
+          )}
           
           {activeTab === 'subscriptions' && (
               <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-xl mb-4 border border-purple-100 dark:border-purple-800 flex items-center justify-between">
@@ -1214,6 +1279,30 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              
+              {/* Show Completed Loans in Archive Tab First */}
+              {activeTab === 'archive' && loans.filter(l => l.status === 'completed').map(loan => (
+                  <div key={loan.id} onClick={() => setSelectedLoan(loan)} className="bg-slate-50 dark:bg-slate-900/50 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 cursor-pointer opacity-80 hover:opacity-100 transition-all">
+                      <div className="flex items-center gap-4 mb-4">
+                          <div className="w-16 h-16 rounded-2xl bg-white dark:bg-slate-800 flex items-center justify-center border border-slate-200 dark:border-slate-700 shadow-sm shrink-0 overflow-hidden grayscale">
+                               {renderIcon(loan.icon)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                              <div className="flex justify-between items-start gap-2">
+                                  <h3 className="font-bold text-lg text-slate-700 dark:text-slate-300 leading-snug">{loan.name}</h3>
+                                  <span className="text-[10px] px-2 py-1 rounded-full shrink-0 bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">مكتمل</span>
+                              </div>
+                              <p className="text-xs text-slate-400 leading-relaxed mt-1">تم سداد القرض بالكامل</p>
+                          </div>
+                      </div>
+                      <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400">
+                          <span>إجمالي المدفوع</span>
+                          <span className="font-bold text-emerald-600 dark:text-emerald-400">{formatSmart(loan.totalAmount)}</span>
+                      </div>
+                      <button className="w-full mt-3 text-xs bg-white border border-slate-200 dark:bg-slate-800 dark:border-slate-700 py-2 rounded-lg font-bold">عرض السجل</button>
+                  </div>
+              ))}
+
               {filteredBills.map(bill => {
                   const daysLeft = bill.endDate ? Math.ceil((new Date(bill.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : 999;
                   const isExpiringSoon = daysLeft < 30 && daysLeft > 0;
@@ -1234,8 +1323,6 @@ const LoansPage: React.FC<LoansPageProps> = ({ loans, setLoans, settings, setSet
                       monthsLeft = 0; 
                   } else if (schedule.length > 0) {
                       totalAmount = schedule.reduce((acc, curr) => acc + curr.amount, 0);
-                      // Fallback: If totalDebt is explicitly set and larger than calculated, use it? 
-                      // No, rely on schedule components for consistency.
                       
                       paidAmount = schedule.filter(s => s.isPaid).reduce((acc, curr) => acc + curr.amount, 0);
                       estimatedRemaining = Math.max(0, totalAmount - paidAmount);

@@ -94,51 +94,74 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
   };
 
   // --- 1. Calculations & Logic ---
-  const expenses = transactions.filter(t => t.type === 'expense');
-  const totalSpent = expenses.reduce((acc, curr) => acc + curr.amount, 0);
+  const today = new Date();
+  
+  // Filter expenses for CURRENT MONTH ONLY to fix projection issues
+  const monthlyExpenses = useMemo(() => {
+      return transactions.filter(t => {
+          const d = new Date(t.date);
+          return t.type === 'expense' && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
+      });
+  }, [transactions]);
+
+  const totalSpentCurrentMonth = monthlyExpenses.reduce((acc, curr) => acc + curr.amount, 0);
   
   // Smart Forecasting
-  const today = new Date();
   const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
   const dayOfMonth = today.getDate();
-  const dailyAverage = dayOfMonth > 0 ? totalSpent / dayOfMonth : 0;
+  
+  // Calculate daily average based on days passed in THIS month
+  const dailyAverage = dayOfMonth > 0 ? totalSpentCurrentMonth / dayOfMonth : 0;
   const forecastedSpend = dailyAverage * daysInMonth;
-  const isOverBudgetRisk = forecastedSpend > settings.monthlyLimit;
+  
+  // Determine Budget Limit (Use Salary/Income from settings if available, else monthlyLimit)
+  const totalIncomeSetting = settings.incomeSources.reduce((acc, s) => acc + s.amount, 0);
+  const effectiveLimit = totalIncomeSetting > 0 ? totalIncomeSetting : settings.monthlyLimit;
+
+  const isOverBudgetRisk = forecastedSpend > effectiveLimit;
 
   // Total Cards Balance
   const totalCardsBalance = settings.cards.reduce((acc, card) => acc + (card.balance || 0), 0);
 
-  // 50/30/20 Rule
+  // 50/30/20 Rule (Based on current month expenses)
   const needsCategories = ['سكن', 'فواتير وخدمات', 'طعام', 'نقل', 'صحة', 'تعليم'];
   const wantsCategories = ['تسوق', 'ترفيه', 'أخرى'];
-  const savingsCategories = ['استثمار', 'تحويل بنكي']; // Assuming transfers are savings
+  const savingsCategories = ['استثمار', 'تحويل بنكي']; 
 
   const ruleData = useMemo(() => {
       let needs = 0, wants = 0, savings = 0;
-      expenses.forEach(t => {
+      monthlyExpenses.forEach(t => {
           if (needsCategories.includes(t.category)) needs += t.amount;
           else if (wantsCategories.includes(t.category)) wants += t.amount;
-          else savings += t.amount; // Default fallback to savings or wants? Let's put rest in wants usually, but stick to specific for now.
+          else savings += t.amount; 
       });
-      // Add explicit savings (if tracked as expense transfers)
       return [
           { name: 'احتياجات (50%)', value: needs, color: '#0ea5e9' }, // Blue
           { name: 'رغبات (30%)', value: wants, color: '#f59e0b' },   // Amber
           { name: 'ادخار (20%)', value: savings, color: '#10b981' }  // Emerald
       ];
-  }, [expenses]);
+  }, [monthlyExpenses]);
 
-  // Period Comparison (Mocking Last Month for Demo if no data exists)
+  // Period Comparison
+  // Calculate Last Month Expenses for comparison
+  const lastMonthExpenses = useMemo(() => {
+      const lastMonthDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      return transactions.filter(t => {
+          const d = new Date(t.date);
+          return t.type === 'expense' && d.getMonth() === lastMonthDate.getMonth() && d.getFullYear() === lastMonthDate.getFullYear();
+      }).reduce((acc, t) => acc + t.amount, 0);
+  }, [transactions]);
+
   const comparisonData = [
-      { name: 'الشهر الماضي', amount: totalSpent * 0.9 }, // Mock: 10% less
-      { name: 'الشهر الحالي', amount: totalSpent }
+      { name: 'الشهر الماضي', amount: lastMonthExpenses }, 
+      { name: 'الشهر الحالي', amount: totalSpentCurrentMonth }
   ];
 
-  // Spending Calendar Logic
+  // Spending Calendar Logic (Using monthlyExpenses)
   const getDayIntensity = (day: number) => {
       // Filter transactions for this day
-      const dailyTotal = expenses
-        .filter(t => new Date(t.date).getDate() === day && new Date(t.date).getMonth() === today.getMonth())
+      const dailyTotal = monthlyExpenses
+        .filter(t => new Date(t.date).getDate() === day)
         .reduce((sum, t) => sum + t.amount, 0);
       
       if (dailyTotal === 0) return 'bg-white/50 dark:bg-white/5';
@@ -213,11 +236,11 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
              </div>
              <div>
                 <h3 className={`font-bold text-lg ${isOverBudgetRisk ? 'text-rose-700 dark:text-rose-300' : 'text-emerald-700 dark:text-emerald-300'}`}>
-                    {isOverBudgetRisk ? 'تنبيه: خطر تجاوز الميزانية' : 'وضعك المالي ممتاز!'}
+                    {isOverBudgetRisk ? 'تنبيه: خطر تجاوز الميزانية (الراتب)' : 'وضعك المالي ممتاز!'}
                 </h3>
                 <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
-                    بناءً على صرفك الحالي ({dailyAverage.toFixed(0)} يومياً)، متوقع أن تصل إلى <span className="font-bold">{forecastedSpend.toLocaleString('en-US')}</span> بنهاية الشهر.
-                    {isOverBudgetRisk ? ` (تتجاوز الحد بـ ${(forecastedSpend - settings.monthlyLimit).toLocaleString('en-US')})` : ` (أقل من الحد بـ ${(settings.monthlyLimit - forecastedSpend).toLocaleString('en-US')})`}
+                    بناءً على صرفك الحالي ({dailyAverage.toFixed(0)} يومياً في هذا الشهر)، متوقع أن تصل إلى <span className="font-bold">{forecastedSpend.toLocaleString('en-US')}</span>.
+                    {isOverBudgetRisk ? ` (تتجاوز الراتب/الحد بـ ${(forecastedSpend - effectiveLimit).toLocaleString('en-US')})` : ` (أقل من الراتب/الحد بـ ${(effectiveLimit - forecastedSpend).toLocaleString('en-US')})`}
                 </p>
              </div>
           </div>
@@ -235,7 +258,7 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
            <div className="bg-sky-50 dark:bg-sky-950/20 p-6 rounded-2xl shadow-sm border border-sky-100 dark:border-sky-900">
                <div className="flex items-center gap-2 mb-6">
                    <PieChartIcon size={20} className="text-sky-600 dark:text-sky-400" />
-                   <h3 className="font-bold text-lg text-sky-900 dark:text-sky-100">قاعدة 50/30/20</h3>
+                   <h3 className="font-bold text-lg text-sky-900 dark:text-sky-100">قاعدة 50/30/20 (هذا الشهر)</h3>
                </div>
                <div className="h-64">
                    <ResponsiveContainer width="100%" height="100%">
@@ -289,7 +312,7 @@ const Budget: React.FC<BudgetProps> = ({ transactions, settings }) => {
                    </ResponsiveContainer>
                </div>
                <p className="text-sm text-slate-500 dark:text-slate-400 mt-4 text-center">
-                   مصروفاتك هذا الشهر {totalSpent > comparisonData[0].amount ? 'أعلى' : 'أقل'} من الشهر الماضي بـ <span>{Math.abs(totalSpent - comparisonData[0].amount).toLocaleString('en-US')}</span>.
+                   مصروفاتك هذا الشهر {totalSpentCurrentMonth > lastMonthExpenses ? 'أعلى' : 'أقل'} من الشهر الماضي بـ <span>{Math.abs(totalSpentCurrentMonth - lastMonthExpenses).toLocaleString('en-US')}</span>.
                </p>
            </div>
        </div>
